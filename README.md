@@ -12,22 +12,34 @@ A modern cryptocurrency application built with Next.js frontend and Node.js back
 
 ## 🌳 Git Workflow
 
-This project uses **separate repositories** for frontend and backend, each with their own branch structure:
+This project uses a **single repository** with separate branch workflows for frontend and backend:
 
 ### Repository Structure
-- `bruinCoin/frontend/` - Frontend repository (Next.js)
-- `bruinCoin/backend/` - Backend repository (Node.js/Express)
+- `bruinCoin/` - Single repository containing both frontend and backend
+- `bruinCoin/frontend/` - Frontend code (Next.js)
+- `bruinCoin/backend/` - Backend code (Node.js/Express)
 
-### Branch Structure (for each repository)
-- `main` - Production branch (stable, deployed code)
-- `dev` - Development branch (integration branch for features)
-- `feature/*` - Feature branches (cloned off `dev`)
+### Branch Structure
+- `main` - Default branch (contains both frontend and backend)
+- `frontend-main` - Production frontend branch
+- `frontend-dev` - Development frontend branch
+- `frontend-feature/*` - Frontend feature branches (cloned off `frontend-dev`)
+- `backend-main` - Production backend branch
+- `backend-dev` - Development backend branch
+- `backend-feature/*` - Backend feature branches (cloned off `backend-dev`)
 
 ### Workflow
-1. Create feature branches from `dev` in the appropriate repository
+**For Frontend Development:**
+1. Create feature branches from `frontend-dev`: `git checkout -b frontend-feature/your-feature`
 2. Develop features in feature branches
-3. Merge feature branches into `dev` for testing
-4. Merge `dev` into `main` for production releases
+3. Merge feature branches into `frontend-dev` for testing
+4. Merge `frontend-dev` into `frontend-main` for production releases
+
+**For Backend Development:**
+1. Create feature branches from `backend-dev`: `git checkout -b backend-feature/your-feature`
+2. Develop features in feature branches
+3. Merge feature branches into `backend-dev` for testing
+4. Merge `backend-dev` into `backend-main` for production releases
 
 ## 🚀 Quick Start
 
@@ -40,31 +52,26 @@ This project uses **separate repositories** for frontend and backend, each with 
 
 ### Local Development
 
-1. **Clone repositories**
+1. **Clone repository**
    ```bash
-   # Clone frontend repository
-   git clone <frontend-repo-url>
-   cd bruinCoin-frontend
-   git checkout dev
-   
-   # Clone backend repository (in separate terminal/directory)
-   git clone <backend-repo-url>
-   cd bruinCoin-backend
-   git checkout dev
+   git clone <repo-url>
+   cd bruinCoin
    ```
 
 2. **Backend Setup**
    ```bash
-   cd bruinCoin-backend
+   git checkout backend-dev
+   cd backend
    npm install
    cp .env.example .env
    # Fill in your Supabase credentials in .env
    npm run dev
    ```
 
-3. **Frontend Setup**
+3. **Frontend Setup** (in separate terminal)
    ```bash
-   cd bruinCoin-frontend
+   git checkout frontend-dev
+   cd frontend
    npm install
    cp .env.local.example .env.local
    # Fill in your Supabase credentials in .env.local
@@ -74,9 +81,9 @@ This project uses **separate repositories** for frontend and backend, each with 
 ## 📁 Project Structure
 
 ```
-bruinCoin/
-├── frontend/               # Frontend repository (Next.js)
-│   ├── .git/              # Frontend git repository
+bruinCoin/                  # Single Git repository
+├── .git/                  # Git repository
+├── frontend/              # Frontend code (Next.js)
 │   ├── src/
 │   │   ├── app/            # Next.js 13+ app directory
 │   │   ├── components/     # Reusable components
@@ -86,8 +93,7 @@ bruinCoin/
 │   ├── next.config.js
 │   ├── package.json
 │   └── README.md
-├── backend/                # Backend repository (Node.js/Express)
-│   ├── .git/              # Backend git repository
+├── backend/               # Backend code (Node.js/Express)
 │   ├── src/
 │   │   ├── controllers/     # Route controllers
 │   │   ├── middleware/      # Custom middleware
@@ -98,7 +104,7 @@ bruinCoin/
 │   ├── package.json
 │   ├── server.js           # Entry point
 │   └── README.md
-└── README.md               # Main project documentation
+└── README.md              # Main project documentation
 ```
 
 ## 🔧 Environment Variables
@@ -149,18 +155,20 @@ NEXT_PUBLIC_API_URL=http://localhost:3001
 ## 🚀 Deployment
 
 ### Frontend (Vercel)
-1. Connect your **frontend** GitHub repository to Vercel
-2. Set build command: `npm run build`
-3. Set output directory: `.next`
-4. Add environment variables in Vercel dashboard
-5. Deploy from `main` branch
+1. Connect your GitHub repository to Vercel
+2. Set build command: `cd frontend && npm run build`
+3. Set output directory: `frontend/.next`
+4. Set root directory: `frontend`
+5. Add environment variables in Vercel dashboard
+6. Deploy from `frontend-main` branch
 
 ### Backend (Render)
-1. Connect your **backend** GitHub repository to Render
-2. Set build command: `npm install`
-3. Set start command: `npm start`
-4. Add environment variables in Render dashboard
-5. Deploy from `main` branch
+1. Connect your GitHub repository to Render
+2. Set build command: `cd backend && npm install`
+3. Set start command: `cd backend && npm start`
+4. Set root directory: `backend`
+5. Add environment variables in Render dashboard
+6. Deploy from `backend-main` branch
 
 ## 🔒 Security Best Practices
 
@@ -212,20 +220,20 @@ npm run lint       # Run linter
 ## 🤝 Contributing
 
 ### For Frontend Development
-1. Navigate to frontend repository: `cd bruinCoin-frontend`
-2. Create a feature branch from `dev`: `git checkout -b feature/your-feature-name`
-3. Make your changes
+1. Switch to frontend dev branch: `git checkout frontend-dev`
+2. Create a feature branch: `git checkout -b frontend-feature/your-feature-name`
+3. Make your changes in the `frontend/` directory
 4. Test thoroughly
-5. Create a pull request to `dev`
-6. After review and testing, merge to `main` for production
+5. Create a pull request to `frontend-dev`
+6. After review and testing, merge to `frontend-main` for production
 
 ### For Backend Development
-1. Navigate to backend repository: `cd bruinCoin-backend`
-2. Create a feature branch from `dev`: `git checkout -b feature/your-feature-name`
-3. Make your changes
+1. Switch to backend dev branch: `git checkout backend-dev`
+2. Create a feature branch: `git checkout -b backend-feature/your-feature-name`
+3. Make your changes in the `backend/` directory
 4. Test thoroughly
-5. Create a pull request to `dev`
-6. After review and testing, merge to `main` for production
+5. Create a pull request to `backend-dev`
+6. After review and testing, merge to `backend-main` for production
 
 ## 📄 License
 
