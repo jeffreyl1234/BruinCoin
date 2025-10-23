@@ -32,6 +32,12 @@ export function LoginForm({
     setIsLoading(true);
     setError(null);
 
+    if (!email.endsWith("@ucla.edu")) {
+      setError("Only @ucla.edu email addresses are allowed");
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email,
@@ -53,7 +59,7 @@ export function LoginForm({
         <CardHeader>
           <CardTitle className="text-2xl">Login</CardTitle>
           <CardDescription>
-            Enter your email below to login to your account
+            Enter your @ucla.edu email below to login to your account
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -64,7 +70,7 @@ export function LoginForm({
                 <Input
                   id="email"
                   type="email"
-                  placeholder="m@example.com"
+                  placeholder="yourname@ucla.edu"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}

@@ -33,6 +33,12 @@ export function SignUpForm({
     setIsLoading(true);
     setError(null);
 
+    if (!email.endsWith("@ucla.edu") && !email.endsWith("@g.ucla.edu")) {
+      setError("Only @ucla.edu email addresses are allowed");
+      setIsLoading(false);
+      return;
+    }
+
     if (password !== repeatPassword) {
       setError("Passwords do not match");
       setIsLoading(false);
@@ -61,7 +67,7 @@ export function SignUpForm({
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl">Sign up</CardTitle>
-          <CardDescription>Create a new account</CardDescription>
+          <CardDescription>Create a new account with your @ucla.edu email</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSignUp}>
@@ -71,7 +77,7 @@ export function SignUpForm({
                 <Input
                   id="email"
                   type="email"
-                  placeholder="m@example.com"
+                  placeholder="yourname@ucla.edu"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
