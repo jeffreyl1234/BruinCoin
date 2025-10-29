@@ -15,11 +15,23 @@ export function Header() {
 
           {/* Navigation */}
           <nav className="hidden md:flex space-x-8">
-            <Link href="/browse" className="text-gray-700 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium">
+            <Link
+              href="/browse"
+              className="text-gray-700 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
+            >
               Browse
             </Link>
-            <Link href="/dashboard" className="text-gray-700 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium">
+            <Link
+              href="/dashboard"
+              className="text-gray-700 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
+            >
               Dashboard
+            </Link>
+            <Link
+              href="/messages"
+              className="text-gray-700 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
+            >
+              Messages
             </Link>
           </nav>
 
