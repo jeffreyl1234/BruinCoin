@@ -4,6 +4,8 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 import usersRouter from './routes/users';
 import tradesRouter from './routes/trades';
+import messagesRouter from './routes/messages';
+import conversationsRouter from './routes/conversations';
 
 // Load environment variables
 dotenv.config();
@@ -36,7 +38,9 @@ app.get('/api', (req, res) => {
     endpoints: {
       health: '/api/health',
       users: '/api/users/:id',
-      trades: '/api/trades'
+      trades: '/api/trades',
+      messages: '/api/messages',
+      conversations: '/api/conversations'
     }
   });
 });
@@ -44,6 +48,8 @@ app.get('/api', (req, res) => {
 // Mount routers
 app.use('/api/users', usersRouter);
 app.use('/api/trades', tradesRouter);
+app.use('/api/messages', messagesRouter);
+app.use('/api/conversations', conversationsRouter);
 
 // Start server
 app.listen(PORT, () => {
