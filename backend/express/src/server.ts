@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
+import usersRouter from './routes/users';
+import tradesRouter from './routes/trades';
 
 // Load environment variables
 dotenv.config();
@@ -33,14 +35,20 @@ app.get('/api', (req, res) => {
     version: '1.0.0',
     endpoints: {
       health: '/api/health',
-      users: '/api/users (coming soon)',
-      trades: '/api/trades (coming soon)'
+      users: '/api/users/:id',
+      trades: '/api/trades'
     }
   });
 });
+
+// Mount routers
+app.use('/api/users', usersRouter);
+app.use('/api/trades', tradesRouter);
 
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 BruinCoin API running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
 });
+
+

@@ -4,8 +4,8 @@
   "description": "Backend API for BruinCoin - UCLA student trading platform",
   "main": "server.js",
   "scripts": {
-    "start": "node dist/server.js",
-    "dev": "nodemon src/server.ts",
+    "start": "node express/dist/server.js",
+    "dev": "nodemon express/src/server.ts",
     "build": "tsc",
     "test": "jest"
   },
