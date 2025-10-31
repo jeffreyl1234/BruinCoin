@@ -1,31 +1,105 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useState, useEffect } from 'react';
 
-const CATEGORIES = ['Events', 'Goods', 'Beauty', 'Ride'];
+// API base URL - change this to your Render URL when deployed
+const API_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_API_URL || 'http://localhost:3001';
 
-// Mock listings data
-const NEW_LISTINGS = [
-  { id: '1', title: 'Royce Headshots', price: '$10 / Trade', status: 'Trade' },
-  { id: '2', title: 'Rideshare to LAX', price: 'Looking for', status: 'Looking for' },
-  { id: '3', title: 'Gel-x Nails', price: 'Trade', status: 'Trade' },
-];
+interface Trade {
+  id: string;
+  title?: string;
+  description?: string;
+  skill_offered?: string;
+  price?: number;
+  category?: string;
+  accepted: boolean;
+}
 
-const RECOMMENDED_LISTINGS = [
-  { id: '4', title: 'Rideshare to LAX', price: 'Looking for', status: 'Looking for' },
-  { id: '5', title: 'Rideshare to LAX', price: 'Looking for', status: 'Looking for' },
-  { id: '6', title: 'Rideshare to LAX', price: 'Looking for', status: 'Looking for' },
-];
+// Fetch trades from Express API
+async function fetchTrades(filters?: { limit?: number; category?: string; offset?: number }): Promise<Trade[]> {
+  try {
+    const params = new URLSearchParams();
+    params.append('limit', String(filters?.limit || 20));
+    params.append('accepted', 'false');
+    if (filters?.category) params.append('category', filters.category);
+    if (filters?.offset) params.append('offset', String(filters.offset));
+    
+    const response = await fetch(`${API_BASE_URL}/api/trades?${params.toString()}`);
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data.trades || [];
+  } catch (error) {
+    console.error('Failed to fetch trades:', error);
+    return [];
+  }
+}
 
 export default function App() {
+  const [newTrades, setNewTrades] = useState<Trade[]>([]);
+  const [recommendedTrades, setRecommendedTrades] = useState<Trade[]>([]);
+  const [allTrades, setAllTrades] = useState<Trade[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      // Fetch all data in parallel
+      const [newData, recommendedData, allData] = await Promise.all([
+        fetchTrades({ limit: 6, offset: 0 }), // New trades
+        fetchTrades({ limit: 6 }), // Recommended (featured)
+        fetchTrades({ limit: 20 }) // All trades for categories
+      ]);
+
+      setNewTrades(newData);
+      setRecommendedTrades(recommendedData);
+      setAllTrades(allData);
+
+      // Extract unique categories
+      const uniqueCategories = Array.from(
+        new Set(allData.map(t => t.category).filter(c => c))
+      ) as string[];
+      setCategories(uniqueCategories);
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Format price display
+  const formatPrice = (trade: Trade): string => {
+    if (trade.price !== null && trade.price !== undefined) {
+      return `$${trade.price.toFixed(2)}`;
+    }
+    if (trade.skill_offered) {
+      return 'Trade';
+    }
+    return 'Looking for';
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+          <ActivityIndicator size="large" color="#3b82f6" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar style="auto" />
       
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Header */}
-
         <View style={{ height: 67 }} />
 
         {/* Search Bar */}
@@ -50,11 +124,15 @@ export default function App() {
             style={styles.categoriesScroll}
             contentContainerStyle={styles.categoriesContainer}
           >
-            {CATEGORIES.map((category) => (
-              <TouchableOpacity key={category} style={styles.categoryButton}>
-                <Text style={styles.categoryText}>{category}</Text>
-              </TouchableOpacity>
-            ))}
+            {categories.length > 0 ? (
+              categories.map((category) => (
+                <TouchableOpacity key={category} style={styles.categoryButton}>
+                  <Text style={styles.categoryText}>{category}</Text>
+                </TouchableOpacity>
+              ))
+            ) : (
+              <Text style={styles.emptyText}>No categories available</Text>
+            )}
           </ScrollView>
         </View>
 
@@ -72,16 +150,22 @@ export default function App() {
             style={styles.listingsScroll}
             contentContainerStyle={styles.listingsContainer}
           >
-            {NEW_LISTINGS.map((listing) => (
-              <View key={listing.id} style={styles.listingCard}>
-                <View style={styles.imagePlaceholder} />
-                <Text style={styles.listingTitle}>{listing.title}</Text>
-                <View style={styles.priceContainer}>
-                  <View style={styles.statusDot} />
-                  <Text style={styles.price}>{listing.price}</Text>
-                </View>
-              </View>
-            ))}
+            {newTrades.length > 0 ? (
+              newTrades.map((trade) => (
+                <TouchableOpacity key={trade.id} style={styles.listingCard}>
+                  <View style={styles.imagePlaceholder} />
+                  <Text style={styles.listingTitle} numberOfLines={1}>
+                    {trade.title || 'Untitled Listing'}
+                  </Text>
+                  <View style={styles.priceContainer}>
+                    <View style={styles.statusDot} />
+                    <Text style={styles.price}>{formatPrice(trade)}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))
+            ) : (
+              <Text style={styles.emptyText}>No new listings</Text>
+            )}
           </ScrollView>
         </View>
 
@@ -99,16 +183,22 @@ export default function App() {
             style={styles.listingsScroll}
             contentContainerStyle={styles.listingsContainer}
           >
-            {RECOMMENDED_LISTINGS.map((listing) => (
-              <View key={listing.id} style={styles.listingCard}>
-                <View style={styles.imagePlaceholder} />
-                <Text style={styles.listingTitle}>{listing.title}</Text>
-                <View style={styles.priceContainer}>
-                  <View style={styles.statusDot} />
-                  <Text style={styles.price}>{listing.price}</Text>
-                </View>
-              </View>
-            ))}
+            {recommendedTrades.length > 0 ? (
+              recommendedTrades.map((trade) => (
+                <TouchableOpacity key={trade.id} style={styles.listingCard}>
+                  <View style={styles.imagePlaceholder} />
+                  <Text style={styles.listingTitle} numberOfLines={1}>
+                    {trade.title || 'Untitled Listing'}
+                  </Text>
+                  <View style={styles.priceContainer}>
+                    <View style={styles.statusDot} />
+                    <Text style={styles.price}>{formatPrice(trade)}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))
+            ) : (
+              <Text style={styles.emptyText}>No recommended listings</Text>
+            )}
           </ScrollView>
         </View>
 
@@ -118,8 +208,21 @@ export default function App() {
             <Text style={styles.sectionTitle}>All Listings</Text>
           </View>
           <View style={styles.allListingsContainer}>
-            <View style={styles.allListingCard} />
-            <View style={[styles.allListingCard, { marginTop: 12 }]} />
+            {allTrades.length > 0 ? (
+              allTrades.slice(0, 5).map((trade) => (
+                <TouchableOpacity key={trade.id} style={[styles.allListingCard, { marginTop: allTrades.indexOf(trade) > 0 ? 12 : 0 }]}>
+                  <Text style={styles.listingTitle}>{trade.title || 'Untitled Listing'}</Text>
+                  {trade.category && (
+                    <Text style={styles.categoryText}>{trade.category}</Text>
+                  )}
+                  <Text style={styles.price}>{formatPrice(trade)}</Text>
+                </TouchableOpacity>
+              ))
+            ) : (
+              <View style={styles.allListingCard}>
+                <Text style={styles.emptyText}>No listings available</Text>
+              </View>
+            )}
           </View>
         </View>
       </ScrollView>
@@ -269,7 +372,14 @@ const styles = StyleSheet.create({
   allListingCard: {
     backgroundColor: '#f3f4f6',
     borderRadius: 12,
-    height: 200,
+    padding: 16,
+    minHeight: 120,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#9ca3af',
+    textAlign: 'center',
+    paddingVertical: 20,
   },
   bottomNav: {
     flexDirection: 'row',
