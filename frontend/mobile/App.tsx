@@ -1,10 +1,26 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useState, useEffect } from 'react';
+
+// Placeholder data - default display
+const CATEGORIES = ['Events', 'Goods', 'Beauty', 'Ride'];
+
+const NEW_LISTINGS = [
+  { id: '1', title: 'Royce Headshots', price: '$10 / Trade', status: 'Trade' },
+  { id: '2', title: 'Rideshare to LAX', price: 'Looking for', status: 'Looking for' },
+  { id: '3', title: 'Gel-x Nails', price: 'Trade', status: 'Trade' },
+];
+
+const RECOMMENDED_LISTINGS = [
+  { id: '4', title: 'Rideshare to LAX', price: 'Looking for', status: 'Looking for' },
+  { id: '5', title: 'Rideshare to LAX', price: 'Looking for', status: 'Looking for' },
+  { id: '6', title: 'Rideshare to LAX', price: 'Looking for', status: 'Looking for' },
+];
 
 // API base URL - change this to your Render URL when deployed
+// Uncomment the code below and remove placeholder data when ready to use API
+/*
 const API_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_API_URL || 'http://localhost:3001';
 
 interface Trade {
@@ -35,8 +51,12 @@ async function fetchTrades(filters?: { limit?: number; category?: string; offset
     return [];
   }
 }
+*/
 
 export default function App() {
+  // Placeholder mode - using mock data
+  // To switch to API mode: uncomment API code above and replace with API state management below
+  /*
   const [newTrades, setNewTrades] = useState<Trade[]>([]);
   const [recommendedTrades, setRecommendedTrades] = useState<Trade[]>([]);
   const [allTrades, setAllTrades] = useState<Trade[]>([]);
@@ -50,18 +70,14 @@ export default function App() {
   const loadData = async () => {
     setLoading(true);
     try {
-      // Fetch all data in parallel
       const [newData, recommendedData, allData] = await Promise.all([
-        fetchTrades({ limit: 6, offset: 0 }), // New trades
-        fetchTrades({ limit: 6 }), // Recommended (featured)
-        fetchTrades({ limit: 20 }) // All trades for categories
+        fetchTrades({ limit: 6, offset: 0 }),
+        fetchTrades({ limit: 6 }),
+        fetchTrades({ limit: 20 })
       ]);
-
       setNewTrades(newData);
       setRecommendedTrades(recommendedData);
       setAllTrades(allData);
-
-      // Extract unique categories
       const uniqueCategories = Array.from(
         new Set(allData.map(t => t.category).filter(c => c))
       ) as string[];
@@ -72,27 +88,7 @@ export default function App() {
       setLoading(false);
     }
   };
-
-  // Format price display
-  const formatPrice = (trade: Trade): string => {
-    if (trade.price !== null && trade.price !== undefined) {
-      return `$${trade.price.toFixed(2)}`;
-    }
-    if (trade.skill_offered) {
-      return 'Trade';
-    }
-    return 'Looking for';
-  };
-
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-          <ActivityIndicator size="large" color="#3b82f6" />
-        </View>
-      </SafeAreaView>
-    );
-  }
+  */
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -124,15 +120,11 @@ export default function App() {
             style={styles.categoriesScroll}
             contentContainerStyle={styles.categoriesContainer}
           >
-            {categories.length > 0 ? (
-              categories.map((category) => (
-                <TouchableOpacity key={category} style={styles.categoryButton}>
-                  <Text style={styles.categoryText}>{category}</Text>
-                </TouchableOpacity>
-              ))
-            ) : (
-              <Text style={styles.emptyText}>No categories available</Text>
-            )}
+            {CATEGORIES.map((category) => (
+              <TouchableOpacity key={category} style={styles.categoryButton}>
+                <Text style={styles.categoryText}>{category}</Text>
+              </TouchableOpacity>
+            ))}
           </ScrollView>
         </View>
 
@@ -150,22 +142,16 @@ export default function App() {
             style={styles.listingsScroll}
             contentContainerStyle={styles.listingsContainer}
           >
-            {newTrades.length > 0 ? (
-              newTrades.map((trade) => (
-                <TouchableOpacity key={trade.id} style={styles.listingCard}>
-                  <View style={styles.imagePlaceholder} />
-                  <Text style={styles.listingTitle} numberOfLines={1}>
-                    {trade.title || 'Untitled Listing'}
-                  </Text>
-                  <View style={styles.priceContainer}>
-                    <View style={styles.statusDot} />
-                    <Text style={styles.price}>{formatPrice(trade)}</Text>
-                  </View>
-                </TouchableOpacity>
-              ))
-            ) : (
-              <Text style={styles.emptyText}>No new listings</Text>
-            )}
+            {NEW_LISTINGS.map((listing) => (
+              <View key={listing.id} style={styles.listingCard}>
+                <View style={styles.imagePlaceholder} />
+                <Text style={styles.listingTitle}>{listing.title}</Text>
+                <View style={styles.priceContainer}>
+                  <View style={styles.statusDot} />
+                  <Text style={styles.price}>{listing.price}</Text>
+                </View>
+              </View>
+            ))}
           </ScrollView>
         </View>
 
@@ -183,22 +169,16 @@ export default function App() {
             style={styles.listingsScroll}
             contentContainerStyle={styles.listingsContainer}
           >
-            {recommendedTrades.length > 0 ? (
-              recommendedTrades.map((trade) => (
-                <TouchableOpacity key={trade.id} style={styles.listingCard}>
-                  <View style={styles.imagePlaceholder} />
-                  <Text style={styles.listingTitle} numberOfLines={1}>
-                    {trade.title || 'Untitled Listing'}
-                  </Text>
-                  <View style={styles.priceContainer}>
-                    <View style={styles.statusDot} />
-                    <Text style={styles.price}>{formatPrice(trade)}</Text>
-                  </View>
-                </TouchableOpacity>
-              ))
-            ) : (
-              <Text style={styles.emptyText}>No recommended listings</Text>
-            )}
+            {RECOMMENDED_LISTINGS.map((listing) => (
+              <View key={listing.id} style={styles.listingCard}>
+                <View style={styles.imagePlaceholder} />
+                <Text style={styles.listingTitle}>{listing.title}</Text>
+                <View style={styles.priceContainer}>
+                  <View style={styles.statusDot} />
+                  <Text style={styles.price}>{listing.price}</Text>
+                </View>
+              </View>
+            ))}
           </ScrollView>
         </View>
 
@@ -208,21 +188,8 @@ export default function App() {
             <Text style={styles.sectionTitle}>All Listings</Text>
           </View>
           <View style={styles.allListingsContainer}>
-            {allTrades.length > 0 ? (
-              allTrades.slice(0, 5).map((trade) => (
-                <TouchableOpacity key={trade.id} style={[styles.allListingCard, { marginTop: allTrades.indexOf(trade) > 0 ? 12 : 0 }]}>
-                  <Text style={styles.listingTitle}>{trade.title || 'Untitled Listing'}</Text>
-                  {trade.category && (
-                    <Text style={styles.categoryText}>{trade.category}</Text>
-                  )}
-                  <Text style={styles.price}>{formatPrice(trade)}</Text>
-                </TouchableOpacity>
-              ))
-            ) : (
-              <View style={styles.allListingCard}>
-                <Text style={styles.emptyText}>No listings available</Text>
-              </View>
-            )}
+            <View style={styles.allListingCard} />
+            <View style={[styles.allListingCard, { marginTop: 12 }]} />
           </View>
         </View>
       </ScrollView>
