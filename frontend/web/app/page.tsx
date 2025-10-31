@@ -1,7 +1,25 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 
-export default function Home() {
+// Fetch trades from Express API
+async function getTrades() {
+  try {
+    const apiUrl = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:3001';
+    const res = await fetch(`${apiUrl}/api/trades?limit=6&accepted=false`, {
+      cache: 'no-store' // Always fetch fresh data
+    });
+    if (!res.ok) return { trades: [] };
+    const data = await res.json();
+    return data;
+  } catch (error) {
+    console.error('Failed to fetch trades:', error);
+    return { trades: [] };
+  }
+}
+
+export default async function Home() {
+  const { trades } = await getTrades();
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-white">
       {/* Hero Section */}
@@ -30,6 +48,59 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Featured Listings Section */}
+      {trades && trades.length > 0 && (
+        <section className="py-20 bg-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl font-bold text-gray-900 mb-4">
+                Featured Listings
+              </h2>
+              <p className="text-lg text-gray-600">
+                Check out what other Bruins are offering
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {trades.map((trade: any) => (
+                <div key={trade.id} className="bg-gray-50 rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="flex items-start justify-between mb-3">
+                    <h3 className="text-lg font-semibold text-gray-900 line-clamp-1">
+                      {trade.title || 'Untitled Listing'}
+                    </h3>
+                    {trade.category && (
+                      <span className="px-2 py-1 text-xs font-medium bg-indigo-100 text-indigo-700 rounded-full">
+                        {trade.category}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                    {trade.description || 'No description'}
+                  </p>
+                  <div className="space-y-2">
+                    {trade.skill_offered && (
+                      <p className="text-xs text-gray-500">
+                        <span className="font-medium">Skill:</span> {trade.skill_offered}
+                      </p>
+                    )}
+                    {trade.price !== null && trade.price !== undefined && (
+                      <p className="text-sm font-semibold text-indigo-600">
+                        ${parseFloat(trade.price).toFixed(2)}
+                      </p>
+                    )}
+                  </div>
+                  <Link href={`/browse?id=${trade.id}`} className="mt-4 inline-block">
+                    <Button size="sm" variant="outline" className="w-full">
+                      View Details
+                    </Button>
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Features Section */}
       <section className="py-20 bg-white">
