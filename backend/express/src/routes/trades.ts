@@ -12,10 +12,13 @@ router.get('/', async (req, res) => {
   const acceptedParam = typeof req.query.accepted === 'string' ? req.query.accepted : undefined;
   const category = typeof req.query.category === 'string' ? req.query.category : undefined;
   const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+  const priceMin = typeof req.query.price_min === 'string' ? Number(req.query.price_min) : undefined;
+  const priceMax = typeof req.query.price_max === 'string' ? Number(req.query.price_max) : undefined;
+  const tag = typeof req.query.tag === 'string' ? req.query.tag : undefined;
 
   let query = supabase
     .from('Trades')
-    .select('id, offerer_user_id, skill_offered, title, description, price, category, accepted');
+    .select('id, offerer_user_id, skill_offered, title, description, price, category, tags, image_urls, accepted');
 
   if (offererUserId) {
     query = query.eq('offerer_user_id', offererUserId);
@@ -29,6 +32,16 @@ router.get('/', async (req, res) => {
   if (search) {
     // Simple text search on title and description
     query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
+  }
+  if (priceMin !== undefined && !isNaN(priceMin)) {
+    query = query.gte('price', priceMin);
+  }
+  if (priceMax !== undefined && !isNaN(priceMax)) {
+    query = query.lte('price', priceMax);
+  }
+  if (tag) {
+    // Filter by tag if tags array contains the tag
+    query = query.contains('tags', [tag]);
   }
 
   query = query.order('id', { ascending: false }).range(offset, offset + limit - 1);
@@ -55,6 +68,8 @@ router.post('/', async (req, res) => {
   const title = req.body?.title;
   const category = req.body?.category ?? null;
   const price = req.body?.price ?? null;
+  const tags = req.body?.tags ?? null;
+  const image_urls = req.body?.image_urls ?? null;
 
   if (!title || typeof title !== 'string') {
     return res.status(400).json({ error: 'title (string) is required' });
@@ -68,10 +83,18 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'price must be a number when provided' });
   }
 
+  if (tags !== null && !Array.isArray(tags)) {
+    return res.status(400).json({ error: 'tags must be an array when provided' });
+  }
+
+  if (image_urls !== null && !Array.isArray(image_urls)) {
+    return res.status(400).json({ error: 'image_urls must be an array when provided' });
+  }
+
   const { data, error } = await supabase
     .from('Trades')
-    .insert([{ offerer_user_id, skill_offered, title, description, price, category, accepted: false }])
-    .select('id, offerer_user_id, skill_offered, title, description, price, category, accepted')
+    .insert([{ offerer_user_id, skill_offered, title, description, price, category, tags, image_urls, accepted: false }])
+    .select('id, offerer_user_id, skill_offered, title, description, price, category, tags, image_urls, accepted')
     .single();
 
   if (error) return res.status(500).json({ error: error.message });
@@ -83,7 +106,7 @@ router.get('/:id', async (req, res) => {
   const { id } = req.params;
   const { data, error } = await supabase
     .from('Trades')
-    .select('id, offerer_user_id, skill_offered, title, description, price, category, accepted')
+    .select('id, offerer_user_id, skill_offered, title, description, price, category, tags, image_urls, accepted')
     .eq('id', id)
     .single();
 
@@ -95,7 +118,7 @@ router.get('/:id', async (req, res) => {
 // PATCH /api/trades/:id - update description or skill_offered
 router.patch('/:id', async (req, res) => {
   const { id } = req.params;
-  const { description, skill_offered, title, category, price } = req.body ?? {};
+  const { description, skill_offered, title, category, price, tags, image_urls } = req.body ?? {};
 
   const update: Record<string, unknown> = {};
   if (typeof description === 'string') update.description = description;
@@ -103,6 +126,8 @@ router.patch('/:id', async (req, res) => {
   if (typeof title === 'string') update.title = title;
   if (typeof category === 'string') update.category = category;
   if (typeof price === 'number') update.price = price;
+  if (Array.isArray(tags)) update.tags = tags;
+  if (Array.isArray(image_urls)) update.image_urls = image_urls;
   if (Object.keys(update).length === 0) {
     return res.status(400).json({ error: 'Nothing to update' });
   }
@@ -111,7 +136,7 @@ router.patch('/:id', async (req, res) => {
     .from('Trades')
     .update(update)
     .eq('id', id)
-    .select('id, offerer_user_id, skill_offered, title, description, price, category, accepted')
+    .select('id, offerer_user_id, skill_offered, title, description, price, category, tags, image_urls, accepted')
     .single();
 
   if (error) return res.status(500).json({ error: error.message });
@@ -126,7 +151,7 @@ router.post('/:id/accept', async (req, res) => {
     .from('Trades')
     .update({ accepted: true })
     .eq('id', id)
-    .select('id, offerer_user_id, skill_offered, title, description, price, category, accepted')
+    .select('id, offerer_user_id, skill_offered, title, description, price, category, tags, image_urls, accepted')
     .single();
 
   if (error) return res.status(500).json({ error: error.message });
@@ -141,7 +166,7 @@ router.post('/:id/cancel', async (req, res) => {
     .from('Trades')
     .update({ accepted: false })
     .eq('id', id)
-    .select('id, offerer_user_id, skill_offered, title, description, price, category, accepted')
+    .select('id, offerer_user_id, skill_offered, title, description, price, category, tags, image_urls, accepted')
     .single();
 
   if (error) return res.status(500).json({ error: error.message });

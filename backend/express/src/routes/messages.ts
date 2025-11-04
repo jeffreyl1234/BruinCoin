@@ -5,7 +5,7 @@ const router = Router();
 
 // POST /api/messages - create a message
 router.post('/', async (req, res) => {
-  const { sender_id, receiver_id, content, conversation_id } = req.body ?? {};
+  const { sender_id, receiver_id, content, conversation_id, attachment_url } = req.body ?? {};
 
   if (!sender_id || typeof sender_id !== 'string') {
     return res.status(400).json({ error: 'sender_id (uuid string) is required' });
@@ -20,10 +20,15 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'conversation_id (uuid string) is required' });
   }
 
+  const insertData: Record<string, unknown> = { sender_id, receiver_id, content, conversation_id };
+  if (typeof attachment_url === 'string') {
+    insertData.attachment_url = attachment_url;
+  }
+
   const insertRes = await supabase
     .from('Messages')
-    .insert([{ sender_id, receiver_id, content, conversation_id }])
-    .select('id, sender_id, receiver_id, content, created_at, conversation_id')
+    .insert([insertData])
+    .select('id, sender_id, receiver_id, content, attachment_url, created_at, conversation_id')
     .single();
   if (insertRes.error) return res.status(500).json({ error: insertRes.error.message });
 
@@ -49,7 +54,7 @@ router.get('/', async (req, res) => {
 
   let query = supabase
     .from('Messages')
-    .select('id, sender_id, receiver_id, content, created_at, conversation_id')
+    .select('id, sender_id, receiver_id, content, attachment_url, created_at, conversation_id')
     .order('created_at', { ascending: true })
     .range(offset, offset + limit - 1);
 
@@ -74,7 +79,7 @@ router.get('/:id', async (req, res) => {
   const { id } = req.params;
   const { data, error } = await supabase
     .from('Messages')
-    .select('id, sender_id, receiver_id, content, created_at, conversation_id')
+    .select('id, sender_id, receiver_id, content, attachment_url, created_at, conversation_id')
     .eq('id', id)
     .single();
 
