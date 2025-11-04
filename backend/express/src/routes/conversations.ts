@@ -37,7 +37,7 @@ router.post('/', async (req, res) => {
   return res.status(201).json({ conversation: created.data });
 });
 
-// GET /api/conversations?user_id=...&limit=&offset= - list a user's conversations
+// GET /api/conversations?user_id=...&limit=&offset= - list user's conversations with unread counts
 router.get('/', async (req, res) => {
   const userId = typeof req.query.user_id === 'string' ? req.query.user_id : undefined;
   const limit = Math.min(Number(req.query.limit ?? 20), 100);
@@ -52,12 +52,31 @@ router.get('/', async (req, res) => {
     .range(offset, offset + limit - 1);
 
   if (error) return res.status(500).json({ error: error.message });
-  return res.json({ conversations: data ?? [] });
+
+  // Calculate unread counts for each conversation
+  const conversationsWithUnread = await Promise.all(
+    (data ?? []).map(async (conv) => {
+      const { count } = await supabase
+        .from('Messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('conversation_id', conv.id)
+        .eq('receiver_id', userId);
+      
+      return {
+        ...conv,
+        unread_count: count ?? 0
+      };
+    })
+  );
+
+  return res.json({ conversations: conversationsWithUnread });
 });
 
 // GET /api/conversations/:id - get a single conversation
 router.get('/:id', async (req, res) => {
   const { id } = req.params;
+  const userId = typeof req.query.user_id === 'string' ? req.query.user_id : undefined;
+
   const { data, error } = await supabase
     .from('Conversations')
     .select('id, participant_a, participant_b, last_message_at, last_message_preview')
@@ -66,7 +85,37 @@ router.get('/:id', async (req, res) => {
 
   if (error) return res.status(500).json({ error: error.message });
   if (!data) return res.status(404).json({ error: 'Conversation not found' });
-  return res.json({ conversation: data });
+
+  // Calculate unread count if user_id provided
+  let unreadCount = 0;
+  if (userId) {
+    const { count } = await supabase
+      .from('Messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('conversation_id', id)
+      .eq('receiver_id', userId);
+    
+    unreadCount = count ?? 0;
+  }
+
+  return res.json({ 
+    conversation: {
+      ...data,
+      unread_count: unreadCount
+    }
+  });
+});
+
+// DELETE /api/conversations/:id - delete a conversation
+router.delete('/:id', async (req, res) => {
+  const { id } = req.params;
+  const { error } = await supabase
+    .from('Conversations')
+    .delete()
+    .eq('id', id);
+
+  if (error) return res.status(500).json({ error: error.message });
+  return res.status(204).send();
 });
 
 export default router;

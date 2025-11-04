@@ -83,6 +83,33 @@ router.get('/:id', async (req, res) => {
   return res.json({ message: data });
 });
 
+// DELETE /api/messages/:id - delete a message (only sender can delete)
+router.delete('/:id', async (req, res) => {
+  const { id } = req.params;
+  const { sender_id } = req.body ?? {};
+
+  // Optional: verify sender_id matches (for security)
+  if (sender_id) {
+    const { data: message } = await supabase
+      .from('Messages')
+      .select('sender_id')
+      .eq('id', id)
+      .single();
+    
+    if (message && message.sender_id !== sender_id) {
+      return res.status(403).json({ error: 'Only sender can delete message' });
+    }
+  }
+
+  const { error } = await supabase
+    .from('Messages')
+    .delete()
+    .eq('id', id);
+
+  if (error) return res.status(500).json({ error: error.message });
+  return res.status(204).send();
+});
+
 export default router;
 
 

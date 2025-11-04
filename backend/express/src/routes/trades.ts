@@ -10,6 +10,8 @@ router.get('/', async (req, res) => {
   const offset = Number(req.query.offset ?? 0);
   const offererUserId = typeof req.query.offerer_user_id === 'string' ? req.query.offerer_user_id : undefined;
   const acceptedParam = typeof req.query.accepted === 'string' ? req.query.accepted : undefined;
+  const category = typeof req.query.category === 'string' ? req.query.category : undefined;
+  const search = typeof req.query.search === 'string' ? req.query.search : undefined;
 
   let query = supabase
     .from('Trades')
@@ -20,6 +22,13 @@ router.get('/', async (req, res) => {
   }
   if (acceptedParam === 'true' || acceptedParam === 'false') {
     query = query.eq('accepted', acceptedParam === 'true');
+  }
+  if (category) {
+    query = query.eq('category', category);
+  }
+  if (search) {
+    // Simple text search on title and description
+    query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
   }
 
   query = query.order('id', { ascending: false }).range(offset, offset + limit - 1);
