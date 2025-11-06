@@ -2,6 +2,8 @@ import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState } from 'react';
+import LoginScreen from './screens/LoginScreen';
+import RegisterScreen from './screens/RegisterScreen';
 import HomeScreen from './screens/HomeScreen';
 import SearchScreen from './screens/SearchScreen';
 import ProfileScreen from './screens/ProfileScreen';
@@ -13,8 +15,11 @@ import BottomNavigation from './components/BottomNavigation';
 import { NEW_LISTINGS, RECOMMENDED_LISTINGS } from './constants/data';
 
 type Screen = 'home' | 'search' | 'profile' | 'messages';
+type AuthScreen = 'login' | 'register';
 
 export default function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authScreen, setAuthScreen] = useState<AuthScreen>('login');
   const [currentScreen, setCurrentScreen] = useState<Screen>('home');
   const [showCreateListing, setShowCreateListing] = useState(false);
   const [showSeeAll, setShowSeeAll] = useState(false);
@@ -39,6 +44,26 @@ export default function App() {
   };
 
   const listings = seeAllType === 'new' ? NEW_LISTINGS : RECOMMENDED_LISTINGS;
+
+  // Show auth screens if not logged in
+  if (!isLoggedIn) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <StatusBar style="auto" />
+        {authScreen === 'login' ? (
+          <LoginScreen 
+            onLogin={() => setIsLoggedIn(true)} 
+            onSwitchToRegister={() => setAuthScreen('register')}
+          />
+        ) : (
+          <RegisterScreen 
+            onRegister={() => setIsLoggedIn(true)} 
+            onSwitchToLogin={() => setAuthScreen('login')}
+          />
+        )}
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
