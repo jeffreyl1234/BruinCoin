@@ -19,7 +19,7 @@ const PORT = process.env.PORT || 3001;
 // Middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: true, // Allow all origins for mobile app development
   credentials: true
 }));
 app.use(express.json());
@@ -61,9 +61,11 @@ app.use('/api/ratings', ratingsRouter);
 app.use('/api/offers', offersRouter);
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`🚀 BruinCoin API running on port ${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+const port = typeof PORT === 'string' ? parseInt(PORT, 10) : PORT;
+app.listen(port, '0.0.0.0', () => {
+  console.log(`🚀 BruinCoin API running on port ${port}`);
+  console.log(`📊 Health check: http://localhost:${port}/api/health`);
+  console.log(`📱 Mobile app can connect via your local IP address`);
 });
 
 

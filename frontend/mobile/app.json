@@ -13,7 +13,14 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        },
+        "NSLocalNetworkUsageDescription": "This app needs access to local network to connect to the development server.",
+        "NSBonjourServices": ["_http._tcp"]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -28,7 +35,8 @@
     },
     "extra": {
       "supabaseUrl": "https://oupfbcetmdonlwcxicka.supabase.co",
-      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im91cGZiY2V0bWRvbmx3Y3hpY2thIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA3MDg1MDcsImV4cCI6MjA3NjI4NDUwN30.cvs-NiCJf_wnIGJUvi2i95njCrhfEkI2Avc_-_CNwF8"
+      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im91cGZiY2V0bWRvbmx3Y3hpY2thIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA3MDg1MDcsImV4cCI6MjA3NjI4NDUwN30.cvs-NiCJf_wnIGJUvi2i95njCrhfEkI2Avc_-_CNwF8",
+      "apiUrl": "http://172.26.97.229:3001"
     }
   }
 }

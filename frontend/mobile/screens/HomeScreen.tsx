@@ -1,7 +1,8 @@
-import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { CATEGORIES, NEW_LISTINGS, RECOMMENDED_LISTINGS } from '../constants/data';
+import Constants from 'expo-constants';
+import { CATEGORIES } from '../constants/data';
 
 interface HomeScreenProps {
   onSeeAllNew: () => void;
@@ -9,7 +10,76 @@ interface HomeScreenProps {
   onSearchPress: () => void;
 }
 
+interface Trade {
+  id: string;
+  title: string;
+  description: string;
+  price: number | null;
+  trade_options: string;
+  category: string | null;
+  image_urls: string[] | null;
+}
+
 export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSearchPress }: HomeScreenProps) {
+  const [newTrades, setNewTrades] = useState<Trade[]>([]);
+  const [recommendedTrades, setRecommendedTrades] = useState<Trade[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Get API URL from config (use IP address for physical devices, localhost for simulator)
+  const apiUrl = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:3001';
+
+  useEffect(() => {
+    fetchTrades();
+  }, []);
+
+  const fetchTrades = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch new trades (limit 4, offset 0)
+      const newTradesResponse = await fetch(`${apiUrl}/api/trades?limit=4&offset=0&accepted=false`);
+      
+      if (!newTradesResponse.ok) {
+        throw new Error(`HTTP error! status: ${newTradesResponse.status}`);
+      }
+      
+      const newTradesData = await newTradesResponse.json();
+      
+      // Fetch recommended trades (limit 4, offset 0 - same for now)
+      const recommendedTradesResponse = await fetch(`${apiUrl}/api/trades?limit=4&offset=0&accepted=false`);
+      
+      if (!recommendedTradesResponse.ok) {
+        throw new Error(`HTTP error! status: ${recommendedTradesResponse.status}`);
+      }
+      
+      const recommendedTradesData = await recommendedTradesResponse.json();
+
+      if (newTradesData.trades) {
+        setNewTrades(newTradesData.trades);
+      }
+      if (recommendedTradesData.trades) {
+        setRecommendedTrades(recommendedTradesData.trades);
+      }
+    } catch (error) {
+      console.error('Failed to fetch trades:', error);
+      setNewTrades([]);
+      setRecommendedTrades([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatPrice = (trade: Trade) => {
+    if (trade.trade_options === 'Sell' && trade.price !== null) {
+      return `$${trade.price.toFixed(2)}`;
+    } else if (trade.trade_options === 'Trade') {
+      return 'Trade';
+    } else if (trade.trade_options === 'Looking for') {
+      return 'Looking for';
+    }
+    return '';
+  };
+
   return (
     <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
       {/* Header */}
@@ -54,23 +124,33 @@ export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSearchP
             <Text style={styles.seeAllText}>see all</Text>
           </TouchableOpacity>
         </View>
-        <ScrollView 
-          horizontal={true}
-          showsHorizontalScrollIndicator={false}
-          style={styles.listingsScroll}
-          contentContainerStyle={styles.listingsContainer}
-        >
-          {NEW_LISTINGS.map((listing) => (
-            <View key={listing.id} style={styles.listingCard}>
-              <View style={styles.imagePlaceholder} />
-              <Text style={styles.listingTitle}>{listing.title}</Text>
-              <View style={styles.priceContainer}>
-                <View style={styles.statusDot} />
-                <Text style={styles.price}>{listing.price}</Text>
-              </View>
-            </View>
-          ))}
-        </ScrollView>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color="#2563eb" />
+          </View>
+        ) : (
+          <ScrollView 
+            horizontal={true}
+            showsHorizontalScrollIndicator={false}
+            style={styles.listingsScroll}
+            contentContainerStyle={styles.listingsContainer}
+          >
+            {newTrades.length > 0 ? (
+              newTrades.map((trade) => (
+                <View key={trade.id} style={styles.listingCard}>
+                  <View style={styles.imagePlaceholder} />
+                  <Text style={styles.listingTitle} numberOfLines={2}>{trade.title || 'Untitled'}</Text>
+                  <View style={styles.priceContainer}>
+                    <View style={styles.statusDot} />
+                    <Text style={styles.price}>{formatPrice(trade)}</Text>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.emptyText}>No new listings</Text>
+            )}
+          </ScrollView>
+        )}
       </View>
 
       {/* Recommended Section */}
@@ -81,23 +161,33 @@ export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSearchP
             <Text style={styles.seeAllText}>see all</Text>
           </TouchableOpacity>
         </View>
-        <ScrollView 
-          horizontal={true}
-          showsHorizontalScrollIndicator={false}
-          style={styles.listingsScroll}
-          contentContainerStyle={styles.listingsContainer}
-        >
-          {RECOMMENDED_LISTINGS.map((listing) => (
-            <View key={listing.id} style={styles.listingCard}>
-              <View style={styles.imagePlaceholder} />
-              <Text style={styles.listingTitle}>{listing.title}</Text>
-              <View style={styles.priceContainer}>
-                <View style={styles.statusDot} />
-                <Text style={styles.price}>{listing.price}</Text>
-              </View>
-            </View>
-          ))}
-        </ScrollView>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color="#2563eb" />
+          </View>
+        ) : (
+          <ScrollView 
+            horizontal={true}
+            showsHorizontalScrollIndicator={false}
+            style={styles.listingsScroll}
+            contentContainerStyle={styles.listingsContainer}
+          >
+            {recommendedTrades.length > 0 ? (
+              recommendedTrades.map((trade) => (
+                <View key={trade.id} style={styles.listingCard}>
+                  <View style={styles.imagePlaceholder} />
+                  <Text style={styles.listingTitle} numberOfLines={2}>{trade.title || 'Untitled'}</Text>
+                  <View style={styles.priceContainer}>
+                    <View style={styles.statusDot} />
+                    <Text style={styles.price}>{formatPrice(trade)}</Text>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.emptyText}>No recommended listings</Text>
+            )}
+          </ScrollView>
+        )}
       </View>
 
       {/* All Listings Section */}
@@ -224,6 +314,17 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     minHeight: 120,
+  },
+  loadingContainer: {
+    paddingVertical: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#6b7280',
+    paddingHorizontal: 16,
+    paddingVertical: 20,
   },
 });
 
