@@ -82,7 +82,10 @@ export default function App() {
       )}
       
       {currentScreen === 'profile' && (
-        <ProfileScreen onBack={() => setCurrentScreen('home')} />
+        <ProfileScreen
+          onBack={() => setCurrentScreen('home')}
+          onLogout={() => setIsLoggedIn(false)}
+        />
       )}
       
       {currentScreen === 'messages' && !showChat && (
