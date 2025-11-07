@@ -6,6 +6,7 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,11 +14,25 @@ import { RECOMMENDED_LISTINGS } from '../constants/data';
 
 interface ProfileScreenProps {
   onBack?: () => void;
+  onLogout?: () => void;
 }
 
-export default function ProfileScreen({ onBack }: ProfileScreenProps) {
+export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) {;
   const userListings = RECOMMENDED_LISTINGS.slice(0, 4);
   const lookingForItems = ['Item 1', 'Item 2', 'Item 3', 'Item 4', 'Item 5', 'Item 6'];
+
+  const handleLogout = () => {
+    Alert.alert("Logout", "Are you sure you want to log out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Logout",
+        style: "destructive",
+        onPress: () => {
+          if (onLogout) onLogout();
+        },
+      },
+    ]);
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -114,6 +129,12 @@ export default function ProfileScreen({ onBack }: ProfileScreenProps) {
               </View>
             ))}
           </View>
+        </View>
+        <View style={styles.logoutContainer}>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={20} color="#ef4444" style={{ marginRight: 8 }} />
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -302,5 +323,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6b7280',
   },
+  logoutContainer: {
+  alignItems: 'center',
+  marginTop: 24,
+  marginBottom: 40,
+},
+logoutButton: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  backgroundColor: '#fee2e2',
+  borderRadius: 12,
+  paddingVertical: 12,
+  paddingHorizontal: 24,
+},
+logoutText: {
+  color: '#ef4444',
+  fontSize: 16,
+  fontWeight: '600',
+},
 });
 
