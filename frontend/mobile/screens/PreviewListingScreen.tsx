@@ -7,6 +7,7 @@ import {
   TextInput,
   TouchableOpacity,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +25,7 @@ interface PreviewListingScreenProps {
   listingData: ListingData;
   onClose: () => void;
   onPublish?: () => void;
+  isPublishing?: boolean;
 }
 
 export default function PreviewListingScreen({
@@ -31,6 +33,7 @@ export default function PreviewListingScreen({
   listingData,
   onClose,
   onPublish,
+  isPublishing = false,
 }: PreviewListingScreenProps) {
   const formatDescription = (description: string) => {
     if (!description) return [];
@@ -129,8 +132,16 @@ export default function PreviewListingScreen({
             </View>
 
             {/* Publish Button */}
-            <TouchableOpacity style={styles.publishButton} onPress={onPublish}>
-              <Text style={styles.publishButtonText}>Publish</Text>
+            <TouchableOpacity 
+              style={[styles.publishButton, isPublishing && styles.publishButtonDisabled]} 
+              onPress={onPublish}
+              disabled={isPublishing}
+            >
+              {isPublishing ? (
+                <ActivityIndicator color="#1f2937" />
+              ) : (
+                <Text style={styles.publishButtonText}>Publish</Text>
+              )}
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -309,6 +320,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  publishButtonDisabled: {
+    opacity: 0.6,
   },
   publishButtonText: {
     fontSize: 16,

@@ -8,6 +8,7 @@ interface HomeScreenProps {
   onSeeAllNew: () => void;
   onSeeAllRecommended: () => void;
   onSearchPress: () => void;
+  onTradePress: (tradeId: string) => void;
 }
 
 interface Trade {
@@ -20,7 +21,7 @@ interface Trade {
   image_urls: string[] | null;
 }
 
-export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSearchPress }: HomeScreenProps) {
+export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSearchPress, onTradePress }: HomeScreenProps) {
   const [newTrades, setNewTrades] = useState<Trade[]>([]);
   const [recommendedTrades, setRecommendedTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,14 +138,19 @@ export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSearchP
           >
             {newTrades.length > 0 ? (
               newTrades.map((trade) => (
-                <View key={trade.id} style={styles.listingCard}>
+                <TouchableOpacity 
+                  key={trade.id} 
+                  style={styles.listingCard}
+                  onPress={() => onTradePress(trade.id)}
+                  activeOpacity={0.7}
+                >
                   <View style={styles.imagePlaceholder} />
                   <Text style={styles.listingTitle} numberOfLines={2}>{trade.title || 'Untitled'}</Text>
                   <View style={styles.priceContainer}>
                     <View style={styles.statusDot} />
                     <Text style={styles.price}>{formatPrice(trade)}</Text>
                   </View>
-                </View>
+                </TouchableOpacity>
               ))
             ) : (
               <Text style={styles.emptyText}>No new listings</Text>
@@ -174,14 +180,19 @@ export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSearchP
           >
             {recommendedTrades.length > 0 ? (
               recommendedTrades.map((trade) => (
-                <View key={trade.id} style={styles.listingCard}>
+                <TouchableOpacity 
+                  key={trade.id} 
+                  style={styles.listingCard}
+                  onPress={() => onTradePress(trade.id)}
+                  activeOpacity={0.7}
+                >
                   <View style={styles.imagePlaceholder} />
                   <Text style={styles.listingTitle} numberOfLines={2}>{trade.title || 'Untitled'}</Text>
                   <View style={styles.priceContainer}>
                     <View style={styles.statusDot} />
                     <Text style={styles.price}>{formatPrice(trade)}</Text>
                   </View>
-                </View>
+                </TouchableOpacity>
               ))
             ) : (
               <Text style={styles.emptyText}>No recommended listings</Text>

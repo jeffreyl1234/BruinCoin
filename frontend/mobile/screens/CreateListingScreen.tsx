@@ -9,11 +9,15 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { CATEGORIES } from '../constants/data';
 import PreviewListingScreen, { ListingData } from './PreviewListingScreen';
+import { supabase } from '../lib/supabaseClient';
+import Constants from 'expo-constants';
 
 interface CreateListingScreenProps {
   onClose: () => void;
@@ -26,17 +30,131 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
   const [showPreview, setShowPreview] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+
+  const apiUrl = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:3001';
 
   const handlePreview = () => {
     setShowPreview(true);
   };
 
-  const handlePublish = () => {
-    // TODO: Implement publish logic
-    console.log('Publishing:', { title, description, price, selectedCategory, selectedOption });
-    // Close preview and create listing modal
-    setShowPreview(false);
-    onClose();
+  const handlePublish = async () => {
+    // Validate required fields
+    if (!title.trim()) {
+      Alert.alert('Error', 'Please enter a title');
+      return;
+    }
+    if (!description.trim()) {
+      Alert.alert('Error', 'Please enter a description');
+      return;
+    }
+    if (!selectedOption) {
+      Alert.alert('Error', 'Please select an option (Sell, Trade, or Looking for)');
+      return;
+    }
+    if (selectedOption === 'Sell' && !price.trim()) {
+      Alert.alert('Error', 'Please enter a price for selling');
+      return;
+    }
+
+    setIsPublishing(true);
+    try {
+      // Get current user from Supabase auth
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !authUser) {
+        Alert.alert('Error', 'Please log in to create a listing');
+        setIsPublishing(false);
+        return;
+      }
+
+      // Ensure user exists in users table (create if doesn't exist)
+      let userCheckResponse = await fetch(`${apiUrl}/api/users/${authUser.id}`);
+      if (userCheckResponse.status === 404) {
+        // User doesn't exist, create them
+        const createUserResponse = await fetch(`${apiUrl}/api/users`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            id: authUser.id,
+            email: authUser.email || '',
+            user_name: authUser.user_metadata?.user_name || null,
+          }),
+        });
+        
+        if (!createUserResponse.ok) {
+          const errorData = await createUserResponse.json();
+          Alert.alert('Error', `Failed to create user profile: ${errorData.error || 'Unknown error'}`);
+          setIsPublishing(false);
+          return;
+        }
+      } else if (!userCheckResponse.ok) {
+        Alert.alert('Error', 'Failed to verify user account');
+        setIsPublishing(false);
+        return;
+      }
+
+      // Prepare trade data
+      const tradeData: Record<string, unknown> = {
+        offerer_user_id: authUser.id,
+        title: title.trim(),
+        description: description.trim(),
+        trade_options: selectedOption,
+        category: selectedCategory,
+      };
+
+      // Add price if it's a Sell option
+      if (selectedOption === 'Sell' && price.trim()) {
+        const priceNum = parseFloat(price.trim());
+        if (isNaN(priceNum) || priceNum <= 0) {
+          Alert.alert('Error', 'Please enter a valid price');
+          setIsPublishing(false);
+          return;
+        }
+        tradeData.price = priceNum;
+      }
+
+      // Make API call to create trade
+      const response = await fetch(`${apiUrl}/api/trades`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(tradeData),
+      });
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        Alert.alert('Error', responseData.error || `Failed to create listing (Status: ${response.status})`);
+        setIsPublishing(false);
+        return;
+      }
+
+      // Success!
+      Alert.alert('Success', 'Listing created successfully!', [
+        {
+          text: 'OK',
+          onPress: () => {
+            setShowPreview(false);
+            onClose();
+            // Reset form
+            setTitle('');
+            setDescription('');
+            setPrice('');
+            setSelectedOption(null);
+            setSelectedCategory('Events');
+          },
+        },
+      ]);
+    } catch (error: any) {
+      console.error('Failed to create listing:', error);
+      Alert.alert('Error', error.message || 'Failed to create listing. Please try again.');
+    } finally {
+      setIsPublishing(false);
+    }
   };
 
   const listingData: ListingData = {
@@ -195,6 +313,7 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
         listingData={listingData}
         onClose={() => setShowPreview(false)}
         onPublish={handlePublish}
+        isPublishing={isPublishing}
       />
     </Modal>
   );

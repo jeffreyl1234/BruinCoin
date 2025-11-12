@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -7,19 +7,147 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { RECOMMENDED_LISTINGS } from '../constants/data';
+import { supabase } from '../lib/supabaseClient';
+import Constants from 'expo-constants';
 
 interface ProfileScreenProps {
   onBack?: () => void;
   onLogout?: () => void;
 }
 
-export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) {;
-  const userListings = RECOMMENDED_LISTINGS.slice(0, 4);
-  const lookingForItems = ['Item 1', 'Item 2', 'Item 3', 'Item 4', 'Item 5', 'Item 6'];
+interface User {
+  id: string;
+  user_name: string | null;
+  email: string;
+  bio: string | null;
+  rating: number | null;
+}
+
+interface Trade {
+  id: string;
+  title: string;
+  description: string;
+  price: number | null;
+  trade_options: string;
+  category: string | null;
+  image_urls: string[] | null;
+}
+
+export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) {
+  const [user, setUser] = useState<User | null>(null);
+  const [userListings, setUserListings] = useState<Trade[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const apiUrl = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:3001';
+
+  useEffect(() => {
+    fetchUserData();
+  }, []);
+
+  const fetchUserData = async () => {
+    try {
+      setLoading(true);
+      
+      // Get current user from Supabase auth
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !authUser) {
+        console.error('Failed to get current user:', authError);
+        setLoading(false);
+        return;
+      }
+
+      // Fetch user profile from API
+      const userResponse = await fetch(`${apiUrl}/api/users/${authUser.id}`);
+      if (userResponse.ok) {
+        const userData = await userResponse.json();
+        if (userData.user) {
+          setUser(userData.user);
+        }
+      } else if (userResponse.status === 404) {
+        // User doesn't exist in users table, create one
+        const createResponse = await fetch(`${apiUrl}/api/users`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            id: authUser.id,
+            email: authUser.email || '',
+            user_name: authUser.user_metadata?.user_name || null,
+          }),
+        });
+        
+        if (createResponse.ok) {
+          const createData = await createResponse.json();
+          if (createData.user) {
+            setUser(createData.user);
+          }
+        } else {
+          // Fallback to auth user data if creation fails
+          setUser({
+            id: authUser.id,
+            email: authUser.email || '',
+            user_name: authUser.user_metadata?.user_name || null,
+            bio: null,
+            rating: null,
+          });
+        }
+      }
+
+      // Fetch user's listings
+      const listingsResponse = await fetch(`${apiUrl}/api/trades?offerer_user_id=${authUser.id}&limit=20&accepted=false`);
+      if (listingsResponse.ok) {
+        const listingsData = await listingsResponse.json();
+        if (listingsData.trades) {
+          setUserListings(listingsData.trades);
+        }
+      } else {
+        console.error('Failed to fetch listings:', listingsResponse.status, listingsResponse.statusText);
+      }
+    } catch (error) {
+      console.error('Failed to fetch user data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatPrice = (trade: Trade) => {
+    if (trade.trade_options === 'Sell' && trade.price !== null) {
+      return `$${trade.price.toFixed(2)}`;
+    } else if (trade.trade_options === 'Trade') {
+      return 'Trade';
+    } else if (trade.trade_options === 'Looking for') {
+      return 'Looking for';
+    }
+    return '';
+  };
+
+  const getUsername = () => {
+    if (user?.user_name) return user.user_name;
+    if (user?.email) {
+      const emailPart = user.email.split('@')[0];
+      // Remove dots and format nicely
+      return emailPart.replace(/\./g, '');
+    }
+    return 'User';
+  };
+
+  const getDisplayName = () => {
+    if (user?.user_name) return user.user_name;
+    if (user?.email) {
+      const emailPart = user.email.split('@')[0];
+      // Capitalize first letter of each word
+      return emailPart.split('.').map(word => 
+        word.charAt(0).toUpperCase() + word.slice(1)
+      ).join(' ') || emailPart.charAt(0).toUpperCase() + emailPart.slice(1);
+    }
+    return 'User';
+  };
 
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure you want to log out?", [
@@ -57,79 +185,78 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
             />
           </View>
           <View style={styles.usernameTag}>
-            <Text style={styles.usernameText}>izabellachan</Text>
+            <Text style={styles.usernameText}>{getUsername()}</Text>
           </View>
         </View>
 
-        {/* Profile Information */}
-        <View style={styles.profileSection}>
-          <View style={styles.profileImageContainer}>
-            <View style={styles.profileImage}>
-              <View style={styles.profileImageInner} />
-            </View>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#2563eb" />
           </View>
-          <View style={styles.profileInfo}>
-            <View style={styles.nameRow}>
-              <Text style={styles.profileName}>First Last</Text>
-              <TouchableOpacity style={styles.messageButton}>
-                <Ionicons name="mail-outline" size={24} color="#3b82f6" />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.ratingContainer}>
-              {[...Array(5)].map((_, i) => (
-                <View key={i} style={i > 0 ? { marginLeft: 2 } : undefined}>
-                  <Ionicons name="star" size={20} color="#3b82f6" />
-                </View>
-              ))}
-            </View>
-          </View>
-        </View>
-
-        {/* About Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>About</Text>
-          <View style={styles.bulletList}>
-            <View style={styles.bulletItem}>
-              <Text style={styles.bullet}>•</Text>
-              <Text style={styles.bulletText}>profile description</Text>
-            </View>
-            <View style={styles.bulletItem}>
-              <Text style={styles.bullet}>•</Text>
-              <Text style={styles.bulletText}>can list experience</Text>
-            </View>
-            <View style={styles.bulletItem}>
-              <Text style={styles.bullet}>•</Text>
-              <Text style={styles.bulletText}>whether they live on the hill or apartments</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Looking for Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Looking for</Text>
-          <View style={styles.lookingForGrid}>
-            {lookingForItems.map((item, index) => (
-              <View key={index} style={styles.lookingForItem} />
-            ))}
-          </View>
-        </View>
-
-        {/* Listings Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Listings</Text>
-          <View style={styles.listingsGrid}>
-            {userListings.map((listing) => (
-              <View key={listing.id} style={styles.listingCard}>
-                <View style={styles.listingImage} />
-                <Text style={styles.listingTitle}>{listing.title}</Text>
-                <View style={styles.listingStatusContainer}>
-                  <View style={styles.listingStatusDot} />
-                  <Text style={styles.listingStatusText}>{listing.price}</Text>
+        ) : (
+          <>
+            {/* Profile Information */}
+            <View style={styles.profileSection}>
+              <View style={styles.profileImageContainer}>
+                <View style={styles.profileImage}>
+                  <View style={styles.profileImageInner} />
                 </View>
               </View>
-            ))}
-          </View>
-        </View>
+              <View style={styles.profileInfo}>
+                <View style={styles.nameRow}>
+                  <Text style={styles.profileName}>{getDisplayName()}</Text>
+                  <TouchableOpacity style={styles.messageButton}>
+                    <Ionicons name="mail-outline" size={24} color="#3b82f6" />
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.ratingContainer}>
+                  {[...Array(5)].map((_, i) => {
+                    const rating = user?.rating || 0;
+                    const filled = i < Math.floor(rating);
+                    return (
+                      <View key={i} style={i > 0 ? { marginLeft: 2 } : undefined}>
+                        <Ionicons 
+                          name="star" 
+                          size={20} 
+                          color={filled ? "#3b82f6" : "#e5e7eb"} 
+                        />
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
+
+            {/* About Section */}
+            {user?.bio && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>About</Text>
+                <Text style={styles.bioText}>{user.bio}</Text>
+              </View>
+            )}
+
+            {/* Listings Section */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Listings</Text>
+              {userListings.length > 0 ? (
+                <View style={styles.listingsGrid}>
+                  {userListings.map((listing) => (
+                    <View key={listing.id} style={styles.listingCard}>
+                      <View style={styles.listingImage} />
+                      <Text style={styles.listingTitle} numberOfLines={2}>{listing.title}</Text>
+                      <View style={styles.listingStatusContainer}>
+                        <View style={styles.listingStatusDot} />
+                        <Text style={styles.listingStatusText}>{formatPrice(listing)}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.emptyText}>No listings yet</Text>
+              )}
+            </View>
+          </>
+        )}
         <View style={styles.logoutContainer}>
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <Ionicons name="log-out-outline" size={20} color="#ef4444" style={{ marginRight: 8 }} />
@@ -274,17 +401,22 @@ const styles = StyleSheet.create({
     color: '#1f2937',
     lineHeight: 20,
   },
-  lookingForGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+  bioText: {
+    fontSize: 14,
+    color: '#1f2937',
+    lineHeight: 20,
   },
-  lookingForItem: {
-    width: '30%',
-    height: 40,
-    backgroundColor: '#f3f4f6',
-    borderRadius: 8,
-    marginBottom: 12,
+  loadingContainer: {
+    paddingVertical: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#9ca3af',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingVertical: 20,
   },
   listingsGrid: {
     flexDirection: 'row',

@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import Constants from 'expo-constants';
 
 interface RegisterScreenProps {
   onRegister: () => void;
@@ -20,6 +21,8 @@ export default function RegisterScreen({ onRegister, onSwitchToLogin }: Register
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const apiUrl = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:3001';
 
   const handleRegister = async () => {
     // Validate all fields
@@ -60,11 +63,46 @@ export default function RegisterScreen({ onRegister, onSwitchToLogin }: Register
       }
 
       if (data.user) {
-        Alert.alert(
-          'Success', 
-          'Account created! Please check your email to verify your account.',
-          [{ text: 'OK', onPress: onRegister }]
-        );
+        // Create user in users table
+        try {
+          const createUserResponse = await fetch(`${apiUrl}/api/users`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              id: data.user.id,
+              email: data.user.email || email.toLowerCase().trim(),
+              user_name: data.user.user_metadata?.user_name || null,
+            }),
+          });
+
+          if (!createUserResponse.ok) {
+            const errorData = await createUserResponse.json();
+            // If user already exists, that's okay (might have been created elsewhere)
+            if (!errorData.error?.includes('already exists') && !errorData.error?.includes('23505')) {
+              console.error('Failed to create user profile:', errorData);
+            }
+          }
+        } catch (userError) {
+          console.error('Error creating user profile:', userError);
+          // Continue anyway - user can still log in
+        }
+
+        // Check if email confirmation is required
+        // If session exists, user was auto-confirmed (email confirmation disabled)
+        if (data.session) {
+          // Email confirmation is disabled - user is automatically logged in
+          // Just call onRegister to proceed without showing alert
+          onRegister();
+        } else {
+          // Email confirmation is required (shouldn't happen if disabled, but handle it)
+          Alert.alert(
+            'Success', 
+            'Account created! Please check your email to verify your account.',
+            [{ text: 'OK' }]
+          );
+        }
       }
     } catch (error: any) {
       Alert.alert('Error', error.message || 'An unexpected error occurred');

@@ -24,6 +24,43 @@ router.get('/', async (req, res) => {
   return res.json({ users: data ?? [] });
 });
 
+// POST /api/users - create a new user
+router.post('/', async (req, res) => {
+  const { id, email, user_name } = req.body ?? {};
+
+  if (!id || typeof id !== 'string') {
+    return res.status(400).json({ error: 'id (uuid string) is required' });
+  }
+  if (!email || typeof email !== 'string') {
+    return res.status(400).json({ error: 'email (string) is required' });
+  }
+
+  const insertData: Record<string, unknown> = { id, email };
+  if (typeof user_name === 'string') insertData.user_name = user_name;
+
+  const { data, error } = await supabase
+    .from('users')
+    .insert([insertData])
+    .select('id, email, user_name, created_at, bio, rating')
+    .single();
+
+  if (error) {
+    // If user already exists, return existing user
+    if (error.code === '23505') { // Unique violation
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('id, email, user_name, created_at, bio, rating')
+        .eq('id', id)
+        .single();
+      if (existingUser) {
+        return res.json({ user: existingUser });
+      }
+    }
+    return res.status(500).json({ error: error.message });
+  }
+  return res.status(201).json({ user: data });
+});
+
 // GET /api/users/:id - fetch single user by id
 router.get('/:id', async (req, res) => {
   const { id } = req.params;

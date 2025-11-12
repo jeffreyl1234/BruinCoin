@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 const router = Router();
 
 // GET /api/trades - list trades with optional filters
-// Query params: limit, offset, offerer_user_id, accepted (true/false), category, trade_options, price_min, price_max, tag
+// Query params: limit, offset, offerer_user_id, accepted (true/false), category, trade_options, price_min, price_max, tag, search
 router.get('/', async (req, res) => {
   const limit = Math.min(Number(req.query.limit ?? 20), 100);
   const offset = Number(req.query.offset ?? 0);
@@ -15,6 +15,7 @@ router.get('/', async (req, res) => {
   const priceMin = typeof req.query.price_min === 'string' ? Number(req.query.price_min) : undefined;
   const priceMax = typeof req.query.price_max === 'string' ? Number(req.query.price_max) : undefined;
   const tag = typeof req.query.tag === 'string' ? req.query.tag : undefined;
+  const search = typeof req.query.search === 'string' ? req.query.search.trim() : undefined;
 
   let query = supabase
     .from('Trades')
@@ -41,6 +42,10 @@ router.get('/', async (req, res) => {
   if (tag) {
     // Filter by tag if tags array contains the tag
     query = query.contains('tags', [tag]);
+  }
+  if (search) {
+    // Search in title or description (case-insensitive)
+    query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
   }
 
   query = query.order('id', { ascending: false }).range(offset, offset + limit - 1);
@@ -132,7 +137,17 @@ router.post('/', async (req, res) => {
     .select('id, offerer_user_id, title, description, price, category, accepted, image_urls, tags, trade_options') 
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    // Check for foreign key constraint violation
+    if (error.code === '23503' || error.message?.includes('foreign key')) {
+      return res.status(400).json({ error: 'User not found. Please ensure your account is properly set up.' });
+    }
+    return res.status(500).json({ error: error.message });
+  }
+  
+  if (!data) {
+    return res.status(500).json({ error: 'Failed to create trade - no data returned' });
+  }
   
   return res.status(201).json({ trade: data });
 });

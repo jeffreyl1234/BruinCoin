@@ -11,8 +11,8 @@ import MessagesLandingScreen from './screens/MessagesLandingScreen';
 import ChatScreen from './screens/ChatScreen';
 import CreateListingScreen from './screens/CreateListingScreen';
 import SeeAllScreen from './screens/SeeAllScreen';
+import ListingDetailScreen from './screens/ListingDetailScreen';
 import BottomNavigation from './components/BottomNavigation';
-import { NEW_LISTINGS, RECOMMENDED_LISTINGS } from './constants/data';
 
 type Screen = 'home' | 'search' | 'profile' | 'messages';
 type AuthScreen = 'login' | 'register';
@@ -27,6 +27,8 @@ export default function App() {
   const [showChat, setShowChat] = useState(false);
   const [currentChatId, setCurrentChatId] = useState<string>('');
   const [currentContactName, setCurrentContactName] = useState<string>('Josie Bruin');
+  const [showListingDetail, setShowListingDetail] = useState(false);
+  const [selectedTradeId, setSelectedTradeId] = useState<string | null>(null);
 
   const handleSeeAll = (type: 'new' | 'recommended') => {
     setSeeAllType(type);
@@ -43,7 +45,18 @@ export default function App() {
     setCurrentChatId('');
   };
 
-  const listings = seeAllType === 'new' ? NEW_LISTINGS : RECOMMENDED_LISTINGS;
+  const handleTradePress = (tradeId: string) => {
+    setSelectedTradeId(tradeId);
+    setShowListingDetail(true);
+  };
+
+  const handleListingDetailClose = () => {
+    setShowListingDetail(false);
+    setSelectedTradeId(null);
+  };
+
+  // SeeAllScreen will fetch data from API, pass empty array for now
+  const listings: any[] = [];
 
   // Show auth screens if not logged in
   if (!isLoggedIn) {
@@ -74,6 +87,7 @@ export default function App() {
           onSeeAllNew={() => handleSeeAll('new')}
           onSeeAllRecommended={() => handleSeeAll('recommended')}
           onSearchPress={() => setCurrentScreen('search')}
+          onTradePress={handleTradePress}
         />
       )}
       
@@ -120,6 +134,13 @@ export default function App() {
         type={seeAllType}
         listings={listings}
         onClose={() => setShowSeeAll(false)}
+      />
+
+      {/* Listing Detail Screen */}
+      <ListingDetailScreen
+        visible={showListingDetail}
+        tradeId={selectedTradeId}
+        onClose={handleListingDetailClose}
       />
     </SafeAreaView>
   );

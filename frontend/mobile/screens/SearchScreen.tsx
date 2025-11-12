@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -6,26 +6,86 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { NEW_LISTINGS, RECOMMENDED_LISTINGS } from '../constants/data';
+import Constants from 'expo-constants';
 
 interface SearchScreenProps {
   onClose?: () => void;
 }
 
+interface Trade {
+  id: string;
+  title: string;
+  description: string;
+  price: number | null;
+  trade_options: string;
+  category: string | null;
+  image_urls: string[] | null;
+}
+
 export default function SearchScreen({ onClose }: SearchScreenProps) {
   const [searchText, setSearchText] = useState('');
   const [recentSearches, setRecentSearches] = useState(['Shoes', 'Jacket', 'Pants']);
+  const [searchResults, setSearchResults] = useState<Trade[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+
+  const apiUrl = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:3001';
 
   const removeRecentSearch = (search: string) => {
     setRecentSearches(recentSearches.filter(s => s !== search));
   };
 
-  const suggestedListings = NEW_LISTINGS;
-  const recommendedListings = RECOMMENDED_LISTINGS;
-  const allListings = [...NEW_LISTINGS, ...RECOMMENDED_LISTINGS];
+  const fetchSearchResults = useCallback(async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      setShowResults(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`${apiUrl}/api/trades?search=${encodeURIComponent(query.trim())}&limit=50&accepted=false`);
+      if (response.ok) {
+        const data = await response.json();
+        setSearchResults(data.trades || []);
+        setShowResults(true);
+      }
+    } catch (error) {
+      console.error('Failed to fetch search results:', error);
+      setSearchResults([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [apiUrl]);
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchText.trim()) {
+        fetchSearchResults(searchText);
+      } else {
+        setSearchResults([]);
+        setShowResults(false);
+      }
+    }, 300); // Wait 300ms after user stops typing
+
+    return () => clearTimeout(timer);
+  }, [searchText, fetchSearchResults]);
+
+  const formatPrice = (trade: Trade) => {
+    if (trade.trade_options === 'Sell' && trade.price !== null) {
+      return `$${trade.price.toFixed(2)}`;
+    } else if (trade.trade_options === 'Trade') {
+      return 'Trade';
+    } else if (trade.trade_options === 'Looking for') {
+      return 'Looking for';
+    }
+    return '';
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -53,86 +113,60 @@ export default function SearchScreen({ onClose }: SearchScreenProps) {
             </TouchableOpacity>
           </View>
 
-          {/* Recent Searches Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionHeading}>RECENT SEARCHES</Text>
-            <View style={styles.recentSearchesContainer}>
-              {recentSearches.map((search, index) => (
-                <View key={index} style={[styles.recentSearchItem, index > 0 && { marginLeft: 8 }]}>
-                  <Text style={styles.recentSearchText}>{search}</Text>
-                  <TouchableOpacity onPress={() => removeRecentSearch(search)}>
-                    <Ionicons name="close" size={16} color="#9ca3af" />
-                  </TouchableOpacity>
+          {/* Search Results or Recent Searches */}
+          {showResults ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                Search Results {searchResults.length > 0 && `(${searchResults.length})`}
+              </Text>
+              {loading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color="#2563eb" />
                 </View>
-              ))}
+              ) : searchResults.length > 0 ? (
+                <ScrollView 
+                  horizontal={true}
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.listingsScroll}
+                  contentContainerStyle={styles.listingsContainer}
+                >
+                  {searchResults.map((listing) => (
+                    <View key={listing.id} style={styles.listingCard}>
+                      <View style={styles.imagePlaceholder} />
+                      <Text style={styles.listingTitle} numberOfLines={2}>{listing.title}</Text>
+                      <View style={styles.priceContainer}>
+                        <View style={styles.statusDot} />
+                        <Text style={styles.price}>{formatPrice(listing)}</Text>
+                      </View>
+                    </View>
+                  ))}
+                </ScrollView>
+              ) : (
+                <Text style={styles.emptyText}>No listings found matching "{searchText}"</Text>
+              )}
             </View>
-          </View>
-
-          {/* Suggested Listings Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Suggested</Text>
-            <ScrollView 
-              horizontal={true}
-              showsHorizontalScrollIndicator={false}
-              style={styles.listingsScroll}
-              contentContainerStyle={styles.listingsContainer}
-            >
-              {suggestedListings.map((listing) => (
-                <View key={listing.id} style={styles.listingCard}>
-                  <View style={styles.imagePlaceholder} />
-                  <Text style={styles.listingTitle}>{listing.title}</Text>
-                  <View style={styles.priceContainer}>
-                    <View style={styles.statusDot} />
-                    <Text style={styles.price}>{listing.price}</Text>
-                  </View>
+          ) : (
+            <>
+              {/* Recent Searches Section */}
+              <View style={styles.section}>
+                <Text style={styles.sectionHeading}>RECENT SEARCHES</Text>
+                <View style={styles.recentSearchesContainer}>
+                  {recentSearches.map((search, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={[styles.recentSearchItem, index > 0 && { marginLeft: 8 }]}
+                      onPress={() => setSearchText(search)}
+                    >
+                      <Text style={styles.recentSearchText}>{search}</Text>
+                      <TouchableOpacity onPress={() => removeRecentSearch(search)}>
+                        <Ionicons name="close" size={16} color="#9ca3af" />
+                      </TouchableOpacity>
+                    </TouchableOpacity>
+                  ))}
                 </View>
-              ))}
-            </ScrollView>
-          </View>
-
-          {/* Recommended for you Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Recommended for you</Text>
-            <ScrollView 
-              horizontal={true}
-              showsHorizontalScrollIndicator={false}
-              style={styles.listingsScroll}
-              contentContainerStyle={styles.listingsContainer}
-            >
-              {recommendedListings.map((listing) => (
-                <View key={listing.id} style={styles.listingCard}>
-                  <View style={styles.imagePlaceholder} />
-                  <Text style={styles.listingTitle}>{listing.title}</Text>
-                  <View style={styles.priceContainer}>
-                    <View style={styles.statusDot} />
-                    <Text style={styles.price}>{listing.price}</Text>
-                  </View>
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-
-          {/* All Listings Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>All Listings</Text>
-            <ScrollView 
-              horizontal={true}
-              showsHorizontalScrollIndicator={false}
-              style={styles.listingsScroll}
-              contentContainerStyle={styles.listingsContainer}
-            >
-              {allListings.slice(0, 3).map((listing) => (
-                <View key={listing.id} style={styles.listingCard}>
-                  <View style={styles.imagePlaceholder} />
-                  <Text style={styles.listingTitle}>{listing.title}</Text>
-                  <View style={styles.priceContainer}>
-                    <View style={styles.statusDot} />
-                    <Text style={styles.price}>{listing.price}</Text>
-                  </View>
-                </View>
-              ))}
-            </ScrollView>
-          </View>
+              </View>
+            </>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -267,6 +301,18 @@ const styles = StyleSheet.create({
   price: {
     fontSize: 12,
     color: '#6b7280',
+  },
+  loadingContainer: {
+    paddingVertical: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#9ca3af',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingVertical: 20,
   },
 });
 
