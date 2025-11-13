@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { CATEGORIES } from '../constants/data';
@@ -24,6 +24,7 @@ interface Trade {
 export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSearchPress, onTradePress }: HomeScreenProps) {
   const [newTrades, setNewTrades] = useState<Trade[]>([]);
   const [recommendedTrades, setRecommendedTrades] = useState<Trade[]>([]);
+  const [allTrades, setAllTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Get API URL from config (use IP address for physical devices, localhost for simulator)
@@ -55,16 +56,29 @@ export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSearchP
       
       const recommendedTradesData = await recommendedTradesResponse.json();
 
+      // Fetch all trades (limit 20 for the "All Listings" section)
+      const allTradesResponse = await fetch(`${apiUrl}/api/trades?limit=20&offset=0&accepted=false`);
+      
+      if (!allTradesResponse.ok) {
+        throw new Error(`HTTP error! status: ${allTradesResponse.status}`);
+      }
+      
+      const allTradesData = await allTradesResponse.json();
+
       if (newTradesData.trades) {
         setNewTrades(newTradesData.trades);
       }
       if (recommendedTradesData.trades) {
         setRecommendedTrades(recommendedTradesData.trades);
       }
+      if (allTradesData.trades) {
+        setAllTrades(allTradesData.trades);
+      }
     } catch (error) {
       console.error('Failed to fetch trades:', error);
       setNewTrades([]);
       setRecommendedTrades([]);
+      setAllTrades([]);
     } finally {
       setLoading(false);
     }
@@ -144,7 +158,15 @@ export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSearchP
                   onPress={() => onTradePress(trade.id)}
                   activeOpacity={0.7}
                 >
-                  <View style={styles.imagePlaceholder} />
+                  {trade.image_urls && trade.image_urls.length > 0 ? (
+                    <Image 
+                      source={{ uri: trade.image_urls[0] }} 
+                      style={styles.imagePlaceholder}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={styles.imagePlaceholder} />
+                  )}
                   <Text style={styles.listingTitle} numberOfLines={2}>{trade.title || 'Untitled'}</Text>
                   <View style={styles.priceContainer}>
                     <View style={styles.statusDot} />
@@ -186,7 +208,15 @@ export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSearchP
                   onPress={() => onTradePress(trade.id)}
                   activeOpacity={0.7}
                 >
-                  <View style={styles.imagePlaceholder} />
+                  {trade.image_urls && trade.image_urls.length > 0 ? (
+                    <Image 
+                      source={{ uri: trade.image_urls[0] }} 
+                      style={styles.imagePlaceholder}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={styles.imagePlaceholder} />
+                  )}
                   <Text style={styles.listingTitle} numberOfLines={2}>{trade.title || 'Untitled'}</Text>
                   <View style={styles.priceContainer}>
                     <View style={styles.statusDot} />
@@ -206,10 +236,48 @@ export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSearchP
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>All Listings</Text>
         </View>
-        <View style={styles.allListingsContainer}>
-          <View style={styles.allListingCard} />
-          <View style={[styles.allListingCard, { marginTop: 12 }]} />
-        </View>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color="#2563eb" />
+          </View>
+        ) : (
+          <View style={styles.allListingsContainer}>
+            {allTrades.length > 0 ? (
+              allTrades.map((trade, index) => (
+                <TouchableOpacity 
+                  key={trade.id} 
+                  style={[styles.allListingCard, index > 0 && { marginTop: 12 }]}
+                  onPress={() => onTradePress(trade.id)}
+                  activeOpacity={0.7}
+                >
+                  {trade.image_urls && trade.image_urls.length > 0 ? (
+                    <Image 
+                      source={{ uri: trade.image_urls[0] }} 
+                      style={styles.allListingImagePlaceholder}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={styles.allListingImagePlaceholder} />
+                  )}
+                  <View style={styles.allListingContent}>
+                    <Text style={styles.allListingTitle} numberOfLines={2}>
+                      {trade.title || 'Untitled'}
+                    </Text>
+                    <Text style={styles.allListingDescription} numberOfLines={2}>
+                      {trade.description || 'No description'}
+                    </Text>
+                    <View style={styles.priceContainer}>
+                      <View style={styles.statusDot} />
+                      <Text style={styles.price}>{formatPrice(trade)}</Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))
+            ) : (
+              <Text style={styles.emptyText}>No listings available</Text>
+            )}
+          </View>
+        )}
       </View>
     </ScrollView>
   );
@@ -321,10 +389,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   allListingCard: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: '#ffffff',
     borderRadius: 12,
     padding: 16,
-    minHeight: 120,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    flexDirection: 'row',
+  },
+  allListingImagePlaceholder: {
+    width: 100,
+    height: 100,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+    marginRight: 12,
+  },
+  allListingContent: {
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  allListingTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  allListingDescription: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginBottom: 8,
+    lineHeight: 20,
   },
   loadingContainer: {
     paddingVertical: 20,
