@@ -11,9 +11,12 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { CATEGORIES } from '../constants/data';
 import PreviewListingScreen, { ListingData } from './PreviewListingScreen';
 import { supabase } from '../lib/supabaseClient';
@@ -31,11 +34,133 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
   const [price, setPrice] = useState('');
   const [showPreview, setShowPreview] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
 
   const apiUrl = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:3001';
 
   const handlePreview = () => {
     setShowPreview(true);
+  };
+
+  const pickImage = async () => {
+    // Request permissions
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Sorry, we need camera roll permissions to upload photos!');
+      return;
+    }
+
+    // Launch image picker
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: true,
+      quality: 0.8,
+      allowsEditing: false,
+    });
+
+    if (!result.canceled && result.assets) {
+      const newImages = result.assets.map(asset => asset.uri);
+      setSelectedImages([...selectedImages, ...newImages].slice(0, 10)); // Limit to 10 images
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setSelectedImages(selectedImages.filter((_, i) => i !== index));
+  };
+
+  const uploadImagesToSupabase = async (imageUris: string[], userId: string): Promise<string[]> => {
+    try {
+      // Read all images as base64
+      const base64Images: string[] = [];
+      
+      for (const uri of imageUris) {
+        try {
+          // Read file as base64 (will throw error if file doesn't exist)
+          let base64String: string;
+          try {
+            base64String = await FileSystem.readAsStringAsync(uri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+          } catch (readError: any) {
+            console.error('Error reading file:', readError);
+            continue;
+          }
+          
+          if (!base64String || typeof base64String !== 'string' || base64String.length === 0) {
+            console.error('Failed to read file as base64 or result is invalid');
+            continue;
+          }
+
+          // Determine MIME type from file extension
+          let mimeType = 'image/jpeg';
+          const uriParts = uri.split('.');
+          if (uriParts.length > 1) {
+            const ext = uriParts[uriParts.length - 1].toLowerCase().split('?')[0];
+            if (ext === 'png') mimeType = 'image/png';
+            else if (ext === 'gif') mimeType = 'image/gif';
+            else if (ext === 'webp') mimeType = 'image/webp';
+          }
+
+          // Format as data URL for API
+          base64Images.push(`data:${mimeType};base64,${base64String}`);
+        } catch (error: any) {
+          console.error('Error reading image:', error);
+        }
+      }
+
+      if (base64Images.length === 0) {
+        return [];
+      }
+
+      // Upload via API
+      const response = await fetch(`${apiUrl}/api/upload/images`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          images: base64Images,
+          userId: userId,
+        }),
+      });
+
+      if (!response.ok) {
+        // Try to parse as JSON, but handle HTML/plain text errors
+        let errorMessage = `Failed to upload images (${response.status})`;
+        try {
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorMessage;
+          } else {
+            const text = await response.text();
+            console.error('Non-JSON error response:', text.substring(0, 200));
+            // If it's HTML, it's likely a 404 or 500 error page
+            if (text.includes('<html>') || text.includes('<!DOCTYPE')) {
+              errorMessage = `Server error: ${response.status}. The upload endpoint may not be available.`;
+            }
+          }
+        } catch (parseError) {
+          console.error('Error parsing error response:', parseError);
+        }
+        throw new Error(errorMessage);
+      }
+
+      // Check content type before parsing
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('Non-JSON success response:', text.substring(0, 200));
+        throw new Error('Server returned invalid response format');
+      }
+
+      const data = await response.json();
+      return data.urls || [];
+    } catch (error: any) {
+      console.error('Error uploading images:', error);
+      throw error;
+    }
   };
 
   const handlePublish = async () => {
@@ -96,6 +221,23 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
         return;
       }
 
+      // Upload images if any are selected
+      let imageUrls: string[] = [];
+      if (selectedImages.length > 0) {
+        setUploadingImages(true);
+        try {
+          imageUrls = await uploadImagesToSupabase(selectedImages, authUser.id);
+        } catch (error) {
+          console.error('Failed to upload images:', error);
+          Alert.alert('Warning', 'Failed to upload some images. Continue without images?', [
+            { text: 'Cancel', onPress: () => { setIsPublishing(false); setUploadingImages(false); return; } },
+            { text: 'Continue', onPress: () => {} }
+          ]);
+        } finally {
+          setUploadingImages(false);
+        }
+      }
+
       // Prepare trade data
       const tradeData: Record<string, unknown> = {
         offerer_user_id: authUser.id,
@@ -104,6 +246,11 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
         trade_options: selectedOption,
         category: selectedCategory,
       };
+
+      // Add images if uploaded
+      if (imageUrls.length > 0) {
+        tradeData.image_urls = imageUrls;
+      }
 
       // Add price if it's a Sell option
       if (selectedOption === 'Sell' && price.trim()) {
@@ -146,6 +293,7 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
             setPrice('');
             setSelectedOption(null);
             setSelectedCategory('Events');
+            setSelectedImages([]);
           },
         },
       ]);
@@ -163,6 +311,7 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
     price,
     category: selectedCategory,
     selectedOption,
+    images: selectedImages,
   };
 
   return (
@@ -186,11 +335,26 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
             <View style={styles.modalSection}>
               <Text style={styles.sectionLabel}>Add Photos</Text>
               <View style={styles.photosContainer}>
-                {[1, 2, 3].map((i) => (
-                  <TouchableOpacity key={i} style={[styles.photoPlaceholder, i < 3 && { marginRight: 12 }]}>
-                    <Ionicons name="image-outline" size={24} color="#9ca3af" />
-                  </TouchableOpacity>
+                {selectedImages.map((uri, index) => (
+                  <View key={index} style={[styles.photoContainer, index < selectedImages.length - 1 && { marginRight: 12 }]}>
+                    <Image source={{ uri }} style={styles.photoImage} />
+                    <TouchableOpacity 
+                      style={styles.removePhotoButton}
+                      onPress={() => removeImage(index)}
+                    >
+                      <Ionicons name="close-circle" size={24} color="#ef4444" />
+                    </TouchableOpacity>
+                  </View>
                 ))}
+                {selectedImages.length < 10 && (
+                  <TouchableOpacity 
+                    style={[styles.photoPlaceholder, selectedImages.length > 0 && { marginLeft: 12 }]}
+                    onPress={pickImage}
+                  >
+                    <Ionicons name="add" size={32} color="#9ca3af" />
+                    <Text style={styles.addPhotoText}>Add Photo</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
 
@@ -300,8 +464,16 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
             </View>
 
             {/* Preview Button */}
-            <TouchableOpacity style={styles.previewButton} onPress={handlePreview}>
-              <Text style={styles.previewButtonText}>Preview</Text>
+            <TouchableOpacity 
+              style={[styles.previewButton, (isPublishing || uploadingImages) && styles.previewButtonDisabled]} 
+              onPress={handlePreview}
+              disabled={isPublishing || uploadingImages}
+            >
+              {uploadingImages ? (
+                <ActivityIndicator color="#1f2937" />
+              ) : (
+                <Text style={styles.previewButtonText}>Preview</Text>
+              )}
             </TouchableOpacity>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -370,6 +542,25 @@ const styles = StyleSheet.create({
   },
   photosContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  photoContainer: {
+    position: 'relative',
+    width: 100,
+    height: 100,
+  },
+  photoImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+    backgroundColor: '#f3f4f6',
+  },
+  removePhotoButton: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
   },
   photoPlaceholder: {
     width: 100,
@@ -378,6 +569,17 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+    borderStyle: 'dashed',
+  },
+  addPhotoText: {
+    fontSize: 10,
+    color: '#9ca3af',
+    marginTop: 4,
+  },
+  previewButtonDisabled: {
+    opacity: 0.6,
   },
   inputGroup: {
     marginBottom: 20,

@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Modal,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +19,7 @@ export interface ListingData {
   price: string;
   category: string;
   selectedOption: string | null;
+  images?: string[];
 }
 
 interface PreviewListingScreenProps {
@@ -80,10 +82,22 @@ export default function PreviewListingScreen({
               </View>
             </View>
 
-            {/* Image Placeholders */}
+            {/* Images */}
             <View style={styles.imagesContainer}>
-              <View style={styles.imagePlaceholder} />
-              <View style={[styles.imagePlaceholder, { marginLeft: 12 }]} />
+              {listingData.images && listingData.images.length > 0 ? (
+                listingData.images.slice(0, 2).map((uri, index) => (
+                  <Image
+                    key={index}
+                    source={{ uri }}
+                    style={[styles.imagePlaceholder, index > 0 && { marginLeft: 12 }]}
+                  />
+                ))
+              ) : (
+                <>
+                  <View style={styles.imagePlaceholder} />
+                  <View style={[styles.imagePlaceholder, { marginLeft: 12 }]} />
+                </>
+              )}
             </View>
 
             {/* Description Section */}

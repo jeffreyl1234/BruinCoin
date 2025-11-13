@@ -19,6 +19,8 @@
     "@react-navigation/stack": "^7.6.1",
     "@supabase/supabase-js": "^2.78.0",
     "expo": "54.0.21",
+    "expo-file-system": "^19.0.17",
+    "expo-image-picker": "^17.0.8",
     "expo-status-bar": "~3.0.8",
     "react": "19.1.0",
     "react-native": "0.81.5",

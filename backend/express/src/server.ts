@@ -9,6 +9,7 @@ import conversationsRouter from './routes/conversations';
 import lookingForRouter from './routes/lookingFor';
 import ratingsRouter from './routes/ratings';
 import offersRouter from './routes/offers';
+import uploadRouter from './routes/upload';
 
 // Load environment variables
 dotenv.config();
@@ -46,7 +47,8 @@ app.get('/api', (req, res) => {
       conversations: '/api/conversations',
       lookingFor: '/api/looking-for',
       ratings: '/api/ratings',
-      offers: '/api/offers'
+      offers: '/api/offers',
+      upload: '/api/upload'
     }
   });
 });
@@ -59,6 +61,7 @@ app.use('/api/conversations', conversationsRouter);
 app.use('/api/looking-for', lookingForRouter);
 app.use('/api/ratings', ratingsRouter);
 app.use('/api/offers', offersRouter);
+app.use('/api/upload', uploadRouter);
 
 // Start server
 const port = typeof PORT === 'string' ? parseInt(PORT, 10) : PORT;
