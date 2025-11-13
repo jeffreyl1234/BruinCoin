@@ -51,11 +51,11 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
       return;
     }
 
-    // Launch image picker
+    // Launch image picker with compression to reduce payload size
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsMultipleSelection: true,
-      quality: 0.8,
+      quality: 0.6, // Reduced quality to decrease file size
       allowsEditing: false,
     });
 

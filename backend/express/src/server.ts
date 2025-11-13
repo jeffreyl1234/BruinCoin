@@ -23,7 +23,9 @@ app.use(cors({
   origin: true, // Allow all origins for mobile app development
   credentials: true
 }));
-app.use(express.json());
+// Increase body size limit to 50MB for image uploads
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
