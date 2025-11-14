@@ -8,9 +8,12 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '../lib/supabaseClient';
 import Constants from 'expo-constants';
 
@@ -25,6 +28,7 @@ interface User {
   email: string;
   bio: string | null;
   rating: number | null;
+  profile_picture_url: string | null;
 }
 
 interface Trade {
@@ -41,6 +45,11 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
   const [user, setUser] = useState<User | null>(null);
   const [userListings, setUserListings] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingName, setEditingName] = useState('');
+  const [editingBio, setEditingBio] = useState('');
+  const [profileImageUri, setProfileImageUri] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const apiUrl = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:3001';
 
@@ -67,6 +76,9 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
         const userData = await userResponse.json();
         if (userData.user) {
           setUser(userData.user);
+          setEditingName(userData.user.user_name || '');
+          setEditingBio(userData.user.bio || '');
+          setProfileImageUri(userData.user.profile_picture_url || null);
         }
       } else if (userResponse.status === 404) {
         // User doesn't exist in users table, create one
@@ -89,13 +101,18 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
           }
         } else {
           // Fallback to auth user data if creation fails
-          setUser({
+          const fallbackUser = {
             id: authUser.id,
             email: authUser.email || '',
             user_name: authUser.user_metadata?.user_name || null,
             bio: null,
             rating: null,
-          });
+            profile_picture_url: null,
+          };
+          setUser(fallbackUser);
+          setEditingName(fallbackUser.user_name || '');
+          setEditingBio(fallbackUser.bio || '');
+          setProfileImageUri(fallbackUser.profile_picture_url || null);
         }
       }
 
@@ -162,6 +179,178 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
     ]);
   };
 
+  const handleEdit = () => {
+    setIsEditing(true);
+    setEditingName(user?.user_name || '');
+    setEditingBio(user?.bio || '');
+    setProfileImageUri(user?.profile_picture_url || null);
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    setEditingName(user?.user_name || '');
+    setEditingBio(user?.bio || '');
+    setProfileImageUri(user?.profile_picture_url || null);
+  };
+
+  const pickProfileImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Please grant camera roll permissions to select a profile picture.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setProfileImageUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image');
+    }
+  };
+
+  const uploadProfileImage = async (imageUri: string, userId: string): Promise<string | null> => {
+    try {
+      // Read file as base64
+      const base64String = await FileSystem.readAsStringAsync(imageUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      if (!base64String || base64String.length === 0) {
+        throw new Error('Failed to read image file');
+      }
+
+      // Determine MIME type
+      let mimeType = 'image/jpeg';
+      const uriParts = imageUri.split('.');
+      if (uriParts.length > 1) {
+        const ext = uriParts[uriParts.length - 1].toLowerCase().split('?')[0];
+        if (ext === 'png') mimeType = 'image/png';
+        else if (ext === 'gif') mimeType = 'image/gif';
+        else if (ext === 'webp') mimeType = 'image/webp';
+      }
+
+      // Format as data URL
+      const dataUrl = `data:${mimeType};base64,${base64String}`;
+
+      // Upload via API
+      const response = await fetch(`${apiUrl}/api/upload/images`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          images: [dataUrl],
+          userId: userId,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Upload failed' }));
+        throw new Error(errorData.error || 'Failed to upload image');
+      }
+
+      const data = await response.json();
+      return data.urls && data.urls.length > 0 ? data.urls[0] : null;
+    } catch (error: any) {
+      console.error('Error uploading profile image:', error);
+      throw error;
+    }
+  };
+
+  const handleSave = async () => {
+    if (!user) return;
+
+    try {
+      setSaving(true);
+
+      // Get current user from Supabase auth
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+      if (authError || !authUser) {
+        Alert.alert('Error', 'Failed to get current user');
+        setSaving(false);
+        return;
+      }
+
+      let profilePictureUrl = profileImageUri;
+
+      // Upload new profile image if a local URI is set (not already a URL)
+      if (profileImageUri && !profileImageUri.startsWith('http')) {
+        try {
+          const uploadedUrl = await uploadProfileImage(profileImageUri, authUser.id);
+          if (uploadedUrl) {
+            profilePictureUrl = uploadedUrl;
+          } else {
+            Alert.alert('Warning', 'Failed to upload profile picture. Continue without updating it?', [
+              { text: 'Cancel', onPress: () => { setSaving(false); return; } },
+              { text: 'Continue', onPress: () => {} }
+            ]);
+            if (!uploadedUrl) {
+              profilePictureUrl = user.profile_picture_url; // Keep existing
+            }
+          }
+        } catch (error: any) {
+          Alert.alert('Error', error.message || 'Failed to upload profile picture');
+          setSaving(false);
+          return;
+        }
+      }
+
+      // Update user profile
+      const updateData: Record<string, string> = {};
+      if (editingName.trim() !== (user.user_name || '')) {
+        updateData.user_name = editingName.trim();
+      }
+      if (editingBio.trim() !== (user.bio || '')) {
+        updateData.bio = editingBio.trim();
+      }
+      if (profilePictureUrl !== user.profile_picture_url) {
+        updateData.profile_picture_url = profilePictureUrl || '';
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        setIsEditing(false);
+        setSaving(false);
+        return;
+      }
+
+      const response = await fetch(`${apiUrl}/api/users/${authUser.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Update failed' }));
+        Alert.alert('Error', errorData.error || 'Failed to update profile');
+        setSaving(false);
+        return;
+      }
+
+      const responseData = await response.json();
+      if (responseData.user) {
+        setUser(responseData.user);
+        setIsEditing(false);
+        Alert.alert('Success', 'Profile updated successfully!');
+      }
+    } catch (error: any) {
+      console.error('Error saving profile:', error);
+      Alert.alert('Error', error.message || 'Failed to save profile');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {/* Top Bar */}
@@ -187,6 +376,24 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
           <View style={styles.usernameTag}>
             <Text style={styles.usernameText}>{getUsername()}</Text>
           </View>
+          {!isEditing ? (
+            <TouchableOpacity onPress={handleEdit} style={styles.editButton}>
+              <Ionicons name="create-outline" size={20} color="#3b82f6" />
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.editActions}>
+              <TouchableOpacity onPress={handleCancel} style={styles.cancelButton}>
+                <Ionicons name="close" size={20} color="#ef4444" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleSave} style={styles.saveButton} disabled={saving}>
+                {saving ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Ionicons name="checkmark" size={20} color="#ffffff" />
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         {loading ? (
@@ -198,42 +405,86 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
             {/* Profile Information */}
             <View style={styles.profileSection}>
               <View style={styles.profileImageContainer}>
-                <View style={styles.profileImage}>
-                  <View style={styles.profileImageInner} />
-                </View>
+                <TouchableOpacity 
+                  onPress={isEditing ? pickProfileImage : undefined}
+                  disabled={!isEditing}
+                  style={styles.profileImageTouchable}
+                >
+                  <View style={styles.profileImage}>
+                    {profileImageUri ? (
+                      <Image 
+                        source={{ uri: profileImageUri }} 
+                        style={styles.profileImageInner}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={styles.profileImageInner} />
+                    )}
+                    {isEditing && (
+                      <View style={styles.profileImageOverlay}>
+                        <Ionicons name="camera" size={24} color="#ffffff" />
+                      </View>
+                    )}
+                  </View>
+                </TouchableOpacity>
               </View>
               <View style={styles.profileInfo}>
                 <View style={styles.nameRow}>
-                  <Text style={styles.profileName}>{getDisplayName()}</Text>
-                  <TouchableOpacity style={styles.messageButton}>
-                    <Ionicons name="mail-outline" size={24} color="#3b82f6" />
-                  </TouchableOpacity>
+                  {isEditing ? (
+                    <TextInput
+                      style={styles.nameInput}
+                      value={editingName}
+                      onChangeText={setEditingName}
+                      placeholder="Enter your name"
+                      placeholderTextColor="#9ca3af"
+                    />
+                  ) : (
+                    <Text style={styles.profileName}>{getDisplayName()}</Text>
+                  )}
+                  {!isEditing && (
+                    <TouchableOpacity style={styles.messageButton}>
+                      <Ionicons name="mail-outline" size={24} color="#3b82f6" />
+                    </TouchableOpacity>
+                  )}
                 </View>
-                <View style={styles.ratingContainer}>
-                  {[...Array(5)].map((_, i) => {
-                    const rating = user?.rating || 0;
-                    const filled = i < Math.floor(rating);
-                    return (
-                      <View key={i} style={i > 0 ? { marginLeft: 2 } : undefined}>
-                        <Ionicons 
-                          name="star" 
-                          size={20} 
-                          color={filled ? "#3b82f6" : "#e5e7eb"} 
-                        />
-                      </View>
-                    );
-                  })}
-                </View>
+                {!isEditing && (
+                  <View style={styles.ratingContainer}>
+                    {[...Array(5)].map((_, i) => {
+                      const rating = user?.rating || 0;
+                      const filled = i < Math.floor(rating);
+                      return (
+                        <View key={i} style={i > 0 ? { marginLeft: 2 } : undefined}>
+                          <Ionicons 
+                            name="star" 
+                            size={20} 
+                            color={filled ? "#3b82f6" : "#e5e7eb"} 
+                          />
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
               </View>
             </View>
 
             {/* About Section */}
-            {user?.bio && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>About</Text>
-                <Text style={styles.bioText}>{user.bio}</Text>
-              </View>
-            )}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>About</Text>
+              {isEditing ? (
+                <TextInput
+                  style={styles.bioInput}
+                  value={editingBio}
+                  onChangeText={setEditingBio}
+                  placeholder="Tell us about yourself..."
+                  placeholderTextColor="#9ca3af"
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                />
+              ) : (
+                <Text style={styles.bioText}>{user?.bio || 'No bio yet'}</Text>
+              )}
+            </View>
 
             {/* Listings Section */}
             <View style={styles.section}>
@@ -323,6 +574,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1f2937',
   },
+  editButton: {
+    marginLeft: 8,
+    padding: 4,
+  },
+  editActions: {
+    flexDirection: 'row',
+    marginLeft: 8,
+  },
+  cancelButton: {
+    padding: 4,
+  },
+  saveButton: {
+    backgroundColor: '#3b82f6',
+    borderRadius: 8,
+    padding: 4,
+    paddingHorizontal: 8,
+  },
   profileSection: {
     flexDirection: 'row',
     paddingHorizontal: 16,
@@ -333,6 +601,10 @@ const styles = StyleSheet.create({
   profileImageContainer: {
     marginRight: 16,
   },
+  profileImageTouchable: {
+    width: 100,
+    height: 100,
+  },
   profileImage: {
     width: 100,
     height: 100,
@@ -342,12 +614,24 @@ const styles = StyleSheet.create({
     borderColor: '#3b82f6',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   profileImageInner: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
+    width: 94,
+    height: 94,
+    borderRadius: 47,
     backgroundColor: '#e5e7eb',
+  },
+  profileImageOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   profileInfo: {
     flex: 1,
@@ -363,6 +647,15 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#1f2937',
+  },
+  nameInput: {
+    flex: 1,
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1f2937',
+    borderBottomWidth: 1,
+    borderBottomColor: '#3b82f6',
+    paddingBottom: 4,
   },
   messageButton: {
     padding: 4,
@@ -405,6 +698,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#1f2937',
     lineHeight: 20,
+  },
+  bioInput: {
+    fontSize: 14,
+    color: '#1f2937',
+    lineHeight: 20,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    padding: 12,
+    minHeight: 100,
+    backgroundColor: '#ffffff',
   },
   loadingContainer: {
     paddingVertical: 40,
