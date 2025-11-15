@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Dimensions,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -356,7 +357,15 @@ export default function SearchScreen({ onTradePress }: SearchScreenProps) {
                 style={styles.resultCard}
                 onPress={() => onTradePress?.(item.id)}
               >
-                <View style={styles.resultImage} />
+                {item.image_urls && item.image_urls.length > 0 ? (
+                  <Image 
+                    source={{ uri: item.image_urls[0] }} 
+                    style={styles.resultImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={styles.resultImage} />
+                )}
                 <View style={styles.resultInfo}>
                   <Text style={styles.resultTitle} numberOfLines={1}>{item.title}</Text>
                   <View style={styles.resultMeta}>
