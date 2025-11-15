@@ -44,8 +44,8 @@ router.get('/', async (req, res) => {
     query = query.contains('tags', [tag]);
   }
   if (search) {
-    // Search in title or description (case-insensitive)
-    query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
+    // Search in title, description, category, or tags (case-insensitive)
+    query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%,category.ilike.%${search}%,tags.cs.{"${search}"}`);
   }
 
   query = query.order('id', { ascending: false }).range(offset, offset + limit - 1);
