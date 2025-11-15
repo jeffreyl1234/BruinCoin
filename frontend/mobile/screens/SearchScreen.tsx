@@ -81,9 +81,6 @@ export default function SearchScreen({ onTradePress }: SearchScreenProps) {
     setLoading(true);
     try {
       let url = `${apiUrl}/api/trades?limit=50&accepted=false`;
-      if (query.trim()) {
-        url += `&search=${encodeURIComponent(query.trim())}`;
-      }
       if (apiTradeType) {
         url += `&trade_options=${encodeURIComponent(apiTradeType)}`;
       }
@@ -101,6 +98,19 @@ export default function SearchScreen({ onTradePress }: SearchScreenProps) {
       if (response.ok) {
         const data = await response.json();
         let results = data.trades || [];
+        
+        // Client-side search filtering by title, description, and tags
+        if (query.trim()) {
+          const searchTerms = query.toLowerCase().split(' ');
+          results = results.filter((trade: Trade) => {
+            const title = (trade.title || '').toLowerCase();
+            const description = (trade.description || '').toLowerCase();
+            const tags = (trade.tags || []).join(' ').toLowerCase();
+            const searchText = `${title} ${description} ${tags}`;
+            
+            return searchTerms.some(term => searchText.includes(term));
+          });
+        }
         
         // Apply sorting
         if (sortBy === 'newest') {
