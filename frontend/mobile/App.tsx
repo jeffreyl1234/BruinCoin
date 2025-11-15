@@ -92,7 +92,7 @@ export default function App() {
       )}
       
       {currentScreen === 'search' && (
-        <SearchScreen />
+        <SearchScreen onTradePress={handleTradePress} />
       )}
       
       {currentScreen === 'profile' && (
