@@ -19,7 +19,7 @@ router.get('/', async (req, res) => {
 
   let query = supabase
     .from('Trades')
-    .select('id, offerer_user_id, title, description, price, category, accepted, image_urls, tags, trade_options');
+    .select('id, offerer_user_id, title, description, price, category, accepted, image_urls, tags, trade_options, created_at');
 
   if (offererUserId) {
     query = query.eq('offerer_user_id', offererUserId);
@@ -134,7 +134,7 @@ router.post('/', async (req, res) => {
   const { data, error } = await supabase
     .from('Trades')
     .insert([tradeData])
-    .select('id, offerer_user_id, title, description, price, category, accepted, image_urls, tags, trade_options') 
+    .select('id, offerer_user_id, title, description, price, category, accepted, image_urls, tags, trade_options, created_at') 
     .single();
 
   if (error) {
@@ -157,7 +157,7 @@ router.get('/:id', async (req, res) => {
   const { id } = req.params;
   const { data, error } = await supabase
     .from('Trades')
-    .select('id, offerer_user_id, title, description, price, category, accepted, image_urls, tags, trade_options')
+    .select('id, offerer_user_id, title, description, price, category, accepted, image_urls, tags, trade_options, created_at')
     .eq('id', id)
     .single();
 
@@ -214,7 +214,7 @@ router.patch('/:id', async (req, res) => {
     .from('Trades')
     .update(update)
     .eq('id', id)
-    .select('id, offerer_user_id, title, description, price, category, accepted, image_urls, tags, trade_options')
+    .select('id, offerer_user_id, title, description, price, category, accepted, image_urls, tags, trade_options, created_at')
     .single();
 
   if (error) return res.status(500).json({ error: error.message });
@@ -230,7 +230,7 @@ router.post('/:id/accept', async (req, res) => {
     .from('Trades')
     .update({ accepted: true })
     .eq('id', id)
-    .select('id, offerer_user_id, title, description, price, category, accepted, image_urls, tags, trade_options')
+    .select('id, offerer_user_id, title, description, price, category, accepted, image_urls, tags, trade_options, created_at')
     .single();
 
   if (error) return res.status(500).json({ error: error.message });
@@ -246,7 +246,7 @@ router.post('/:id/cancel', async (req, res) => {
     .from('Trades')
     .update({ accepted: false })
     .eq('id', id) 
-    .select('id, offerer_user_id, title, description, price, category, accepted, image_urls, tags, trade_options')
+    .select('id, offerer_user_id, title, description, price, category, accepted, image_urls, tags, trade_options, created_at')
     .single();
 
   if (error) return res.status(500).json({ error: error.message });

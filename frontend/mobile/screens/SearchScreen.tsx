@@ -8,12 +8,12 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Dimensions,
-  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import Slider from '@react-native-community/slider';
+import TradeCard from '../components/TradeCard';
 
 interface SearchScreenProps {
   onTradePress?: (tradeId: string) => void;
@@ -112,6 +112,13 @@ export default function SearchScreen({ onTradePress }: SearchScreenProps) {
           });
         }
         
+        // Client-side category filtering
+        if (selectedCategory) {
+          results = results.filter((trade: Trade) => {
+            return trade.category === selectedCategory;
+          });
+        }
+        
         // Apply sorting
         if (sortBy === 'newest') {
           results.sort((a: Trade, b: Trade) => new Date(b.id).getTime() - new Date(a.id).getTime());
@@ -152,16 +159,7 @@ export default function SearchScreen({ onTradePress }: SearchScreenProps) {
 
 
 
-  const formatPrice = (trade: Trade) => {
-    if (trade.trade_options === 'Sell' && trade.price !== null) {
-      return `$${trade.price.toFixed(2)}`;
-    } else if (trade.trade_options === 'Trade') {
-      return 'Trade';
-    } else if (trade.trade_options === 'Looking for') {
-      return 'Looking for';
-    }
-    return '';
-  };
+
 
   const renderFilterPanel = () => {
     if (!showFilters) return null;
@@ -362,28 +360,12 @@ export default function SearchScreen({ onTradePress }: SearchScreenProps) {
         ) : searchResults.length > 0 ? (
           <View style={styles.resultsGrid}>
             {searchResults.map((item) => (
-              <TouchableOpacity
+              <TradeCard
                 key={item.id}
-                style={styles.resultCard}
-                onPress={() => onTradePress?.(item.id)}
-              >
-                {item.image_urls && item.image_urls.length > 0 ? (
-                  <Image 
-                    source={{ uri: item.image_urls[0] }} 
-                    style={styles.resultImage}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View style={styles.resultImage} />
-                )}
-                <View style={styles.resultInfo}>
-                  <Text style={styles.resultTitle} numberOfLines={1}>{item.title}</Text>
-                  <View style={styles.resultMeta}>
-                    <View style={styles.statusIndicator} />
-                    <Text style={styles.resultStatus}>{formatPrice(item)}</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
+                trade={item}
+                onPress={(tradeId) => onTradePress?.(tradeId)}
+                width={cardWidth}
+              />
             ))}
           </View>
         ) : (
@@ -604,42 +586,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 16,
   },
-  resultCard: {
-    width: cardWidth,
-    marginBottom: 12,
-  },
-  resultImage: {
-    width: '100%',
-    height: cardWidth,
-    backgroundColor: '#f3f4f6',
-    borderRadius: 12,
-    marginBottom: 8,
-  },
 
-  resultInfo: {
-    paddingHorizontal: 0,
-  },
-  resultTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 4,
-  },
-  resultMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statusIndicator: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#9ca3af',
-    marginRight: 6,
-  },
-  resultStatus: {
-    fontSize: 12,
-    color: '#6b7280',
-  },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Image, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { CATEGORIES } from '../constants/data';
+import TradeCard from '../components/TradeCard';
 
 interface HomeScreenProps {
   onSeeAllNew: () => void;
@@ -19,6 +20,7 @@ interface Trade {
   trade_options: string;
   category: string | null;
   image_urls: string[] | null;
+  created_at: string;
 }
 
 export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSearchPress, onTradePress }: HomeScreenProps) {
@@ -38,44 +40,32 @@ export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSearchP
     try {
       setLoading(true);
       
-      // Fetch new trades (limit 4, offset 0)
-      const newTradesResponse = await fetch(`${apiUrl}/api/trades?limit=4&offset=0&accepted=false`);
-      
-      if (!newTradesResponse.ok) {
-        throw new Error(`HTTP error! status: ${newTradesResponse.status}`);
-      }
-      
-      const newTradesData = await newTradesResponse.json();
-      
-      // Fetch recommended trades (limit 4, offset 0 - same for now)
-      const recommendedTradesResponse = await fetch(`${apiUrl}/api/trades?limit=4&offset=0&accepted=false`);
-      
-      if (!recommendedTradesResponse.ok) {
-        throw new Error(`HTTP error! status: ${recommendedTradesResponse.status}`);
-      }
-      
-      const recommendedTradesData = await recommendedTradesResponse.json();
-
-      // Fetch all trades (limit 20 for the "All Listings" section)
-      const allTradesResponse = await fetch(`${apiUrl}/api/trades?limit=20&offset=0&accepted=false`);
+      // Fetch all trades first
+      const allTradesResponse = await fetch(`${apiUrl}/api/trades?limit=50&offset=0&accepted=false`);
       
       if (!allTradesResponse.ok) {
         throw new Error(`HTTP error! status: ${allTradesResponse.status}`);
       }
       
       const allTradesData = await allTradesResponse.json();
+      const allTrades = allTradesData.trades || [];
+      
+      // Filter new trades (created in last 24 hours)
+      const now = new Date();
+      const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const newTrades = allTrades.filter((trade: Trade) => {
+        if (!trade.created_at) return false;
+        const createdAt = new Date(trade.created_at);
+        return createdAt >= twentyFourHoursAgo;
+      }).slice(0, 4);
+      
+      // Use same trades for recommended (first 4)
+      const recommendedTrades = allTrades.slice(0, 4);
 
-      if (newTradesData.trades) {
-        setNewTrades(newTradesData.trades);
-      }
-      if (recommendedTradesData.trades) {
-        setRecommendedTrades(recommendedTradesData.trades);
-      }
-      if (allTradesData.trades) {
-        setAllTrades(allTradesData.trades);
-      }
+      setNewTrades(newTrades);
+      setRecommendedTrades(recommendedTrades);
+      setAllTrades(allTrades);
     } catch (error) {
-      console.error('Failed to fetch trades:', error);
       setNewTrades([]);
       setRecommendedTrades([]);
       setAllTrades([]);
@@ -98,37 +88,8 @@ export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSearchP
   return (
     <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
       {/* Header */}
-      <View style={{ height: 67 }} />
-
-      {/* Search Bar */}
-      <TouchableOpacity style={styles.searchContainer} onPress={onSearchPress}>
-        <Ionicons name="search" size={20} color="#9ca3af" style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search"
-          placeholderTextColor="#9ca3af"
-          editable={false}
-        />
-      </TouchableOpacity>
-
-      {/* Categories Section */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Categories</Text>
-          <Text style={styles.sortText}>sort</Text>
-        </View>
-        <ScrollView 
-          horizontal={true}
-          showsHorizontalScrollIndicator={false}
-          style={styles.categoriesScroll}
-          contentContainerStyle={styles.categoriesContainer}
-        >
-          {CATEGORIES.map((category) => (
-            <TouchableOpacity key={category} style={styles.categoryButton}>
-              <Text style={styles.categoryText}>{category}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+      <View style={styles.headerContainer}>
+        <Text style={styles.appTitle}>bt🧑‍💼wn</Text>
       </View>
 
       {/* New Listings Section */}
@@ -241,37 +202,15 @@ export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSearchP
             <ActivityIndicator size="small" color="#2563eb" />
           </View>
         ) : (
-          <View style={styles.allListingsContainer}>
+          <View style={styles.allListingsGrid}>
             {allTrades.length > 0 ? (
-              allTrades.map((trade, index) => (
-                <TouchableOpacity 
-                  key={trade.id} 
-                  style={[styles.allListingCard, index > 0 && { marginTop: 12 }]}
-                  onPress={() => onTradePress(trade.id)}
-                  activeOpacity={0.7}
-                >
-                  {trade.image_urls && trade.image_urls.length > 0 ? (
-                    <Image 
-                      source={{ uri: trade.image_urls[0] }} 
-                      style={styles.allListingImagePlaceholder}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <View style={styles.allListingImagePlaceholder} />
-                  )}
-                  <View style={styles.allListingContent}>
-                    <Text style={styles.allListingTitle} numberOfLines={2}>
-                      {trade.title || 'Untitled'}
-                    </Text>
-                    <Text style={styles.allListingDescription} numberOfLines={2}>
-                      {trade.description || 'No description'}
-                    </Text>
-                    <View style={styles.priceContainer}>
-                      <View style={styles.statusDot} />
-                      <Text style={styles.price}>{formatPrice(trade)}</Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
+              allTrades.map((trade) => (
+                <TradeCard
+                  key={trade.id}
+                  trade={trade}
+                  onPress={onTradePress}
+                  width={cardWidth}
+                />
               ))
             ) : (
               <Text style={styles.emptyText}>No listings available</Text>
@@ -283,27 +222,23 @@ export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSearchP
   );
 }
 
+const { width } = Dimensions.get('window');
+const cardWidth = (width - 48) / 2;
+
 const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
+    backgroundColor: '#FFFFFF',
   },
-  searchContainer: {
-    flexDirection: 'row',
+  headerContainer: {
     alignItems: 'center',
-    backgroundColor: '#f3f4f6',
-    borderRadius: 12,
-    marginHorizontal: 16,
-    marginBottom: 20,
-    paddingHorizontal: 12,
-    height: 44,
+    paddingVertical: 20,
+    paddingTop: 60,
   },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#1f2937',
+  appTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#000',
   },
   section: {
     marginBottom: 24,
@@ -329,24 +264,7 @@ const styles = StyleSheet.create({
     color: '#2563eb',
     fontWeight: '600',
   },
-  categoriesScroll: {
-    marginLeft: 16,
-  },
-  categoriesContainer: {
-    paddingRight: 16,
-  },
-  categoryButton: {
-    backgroundColor: '#f3f4f6',
-    borderRadius: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    marginRight: 8,
-  },
-  categoryText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#1f2937',
-  },
+
   listingsScroll: {
     marginLeft: 16,
   },
@@ -378,46 +296,19 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#9ca3af',
+    backgroundColor: '#FF6B6B',
     marginRight: 6,
   },
   price: {
     fontSize: 12,
     color: '#6b7280',
   },
-  allListingsContainer: {
-    paddingHorizontal: 16,
-  },
-  allListingCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+  allListingsGrid: {
     flexDirection: 'row',
-  },
-  allListingImagePlaceholder: {
-    width: 100,
-    height: 100,
-    backgroundColor: '#f3f4f6',
-    borderRadius: 8,
-    marginRight: 12,
-  },
-  allListingContent: {
-    flex: 1,
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
     justifyContent: 'space-between',
-  },
-  allListingTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 4,
-  },
-  allListingDescription: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 8,
-    lineHeight: 20,
+    gap: 16,
   },
   loadingContainer: {
     paddingVertical: 20,
