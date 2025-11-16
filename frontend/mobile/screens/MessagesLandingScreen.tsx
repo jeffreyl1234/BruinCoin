@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -6,9 +6,9 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+} from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 
 interface Chat {
   id: string;
@@ -23,49 +23,72 @@ interface MessagesLandingScreenProps {
 }
 
 const MOCK_CHATS: Chat[] = [
-  { id: '1', name: 'Josie Bruin', lastMessage: 'Hi I also wanted to rideshare on...', unreadCount: 9, hasAttachment: true },
-  { id: '2', name: 'Josie Bruin', lastMessage: 'Hi I also wanted to rideshare on...', unreadCount: 9 },
-  { id: '3', name: 'Josie Bruin', lastMessage: 'Hi I also wanted to rideshare on...', unreadCount: 9 },
-  { id: '4', name: 'Josie Bruin', lastMessage: 'Hi I also wanted to rideshare on...', unreadCount: 9 },
-  { id: '5', name: 'Josie Bruin', lastMessage: 'Hi I also wanted to rideshare on...', unreadCount: 9 },
+  {
+    id: "1",
+    name: "Josie Bruin",
+    lastMessage: "Hi I also wanted to rideshare on...",
+    unreadCount: 9,
+    hasAttachment: true,
+  },
+  {
+    id: "2",
+    name: "Josie Bruin",
+    lastMessage: "Hi I also wanted to rideshare on...",
+    unreadCount: 9,
+  },
+  {
+    id: "3",
+    name: "Josie Bruin",
+    lastMessage: "Hi I also wanted to rideshare on...",
+    unreadCount: 9,
+  },
+  {
+    id: "4",
+    name: "Josie Bruin",
+    lastMessage: "Hi I also wanted to rideshare on...",
+    unreadCount: 9,
+  },
+  {
+    id: "5",
+    name: "Josie Bruin",
+    lastMessage: "Hi I also wanted to rideshare on...",
+    unreadCount: 9,
+  },
 ];
 
-export default function MessagesLandingScreen({ onChatPress }: MessagesLandingScreenProps) {
-  const [searchText, setSearchText] = useState('');
+export default function MessagesLandingScreen({
+  onChatPress,
+}: MessagesLandingScreenProps) {
+  const [searchText, setSearchText] = useState("");
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Top Bar */}
-      <View style={styles.topBar}>
-        <Text style={styles.topBarText}>Messaging Landing Page</Text>
-      </View>
-
+    <SafeAreaView style={[styles.container, { paddingTop: 4 }]} edges={["top", "bottom"]}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity>
-            <Text style={styles.editLink}>Edit</Text>
+            <Text style={styles.editText}>Edit</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Chats</Text>
           <TouchableOpacity>
-            <Ionicons name="create-outline" size={24} color="#2563eb" />
+            <Ionicons name="create-outline" size={22} color="#007AFF" />
           </TouchableOpacity>
         </View>
 
         {/* Search and Filter */}
         <View style={styles.searchSection}>
           <View style={styles.searchBar}>
-            <Ionicons name="search" size={20} color="#9ca3af" style={{ marginRight: 8 }} />
+            <Ionicons name="search-outline" size={18} color="#9ca3af" />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search Contacts"
+              placeholder="Search"
               placeholderTextColor="#9ca3af"
               value={searchText}
               onChangeText={setSearchText}
             />
           </View>
           <TouchableOpacity style={styles.filterButton}>
-            <Ionicons name="menu" size={20} color="#1f2937" />
+            <Ionicons name="filter-outline" size={18} color="#1f2937" />
             <Text style={styles.filterText}>Filter</Text>
             <View style={styles.filterBadge}>
               <Text style={styles.filterBadgeText}>2</Text>
@@ -82,7 +105,7 @@ export default function MessagesLandingScreen({ onChatPress }: MessagesLandingSc
               onPress={() => onChatPress(chat.id)}
             >
               <View style={styles.avatar}>
-                <Ionicons name="person" size={32} color="#3b82f6" />
+                <Ionicons name="person" size={30} color="#3b82f6" />
               </View>
               <View style={styles.chatInfo}>
                 <Text style={styles.chatName}>{chat.name}</Text>
@@ -92,7 +115,12 @@ export default function MessagesLandingScreen({ onChatPress }: MessagesLandingSc
               </View>
               <View style={styles.chatRight}>
                 {chat.hasAttachment && (
-                  <Ionicons name="attach" size={20} color="#1f2937" style={styles.attachmentIcon} />
+                  <Ionicons
+                    name="attach-outline"
+                    size={18}
+                    color="#6b7280"
+                    style={{ marginBottom: 4 }}
+                  />
                 )}
                 <View style={styles.unreadBadge}>
                   <Text style={styles.unreadBadgeText}>{chat.unreadCount}</Text>
@@ -109,147 +137,139 @@ export default function MessagesLandingScreen({ onChatPress }: MessagesLandingSc
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f3f4f6',
-  },
-  topBar: {
-    backgroundColor: '#1f2937',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  topBarText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
+    backgroundColor: "#fff",
   },
   scrollView: {
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: '#ffffff',
+    paddingBottom: 16,
+    backgroundColor: "#fff",
   },
-  editLink: {
+  editText: {
+    color: "#007AFF",
+    fontWeight: "600",
     fontSize: 16,
-    color: '#2563eb',
-    fontWeight: '600',
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
+    fontWeight: "700",
+    color: "#111827",
   },
   searchSection: {
-    flexDirection: 'row',
+    flexDirection: "row",
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#ffffff',
+    paddingVertical: 8,
+    alignItems: "center",
+    backgroundColor: "#fff",
   },
   searchBar: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f3f4f6',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F2F4F7",
     borderRadius: 12,
     paddingHorizontal: 12,
     height: 40,
-    marginRight: 12,
+    marginRight: 10,
   },
   searchInput: {
     flex: 1,
     fontSize: 14,
-    color: '#1f2937',
+    color: "#111827",
+    marginLeft: 6,
   },
   filterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f3f4f6',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F2F4F7",
     borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    position: 'relative',
+    height: 40,
+    position: "relative",
   },
   filterText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginLeft: 6,
+    fontWeight: "500",
+    color: "#1f2937",
+    marginLeft: 4,
   },
   filterBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: '#2563eb',
+    position: "absolute",
+    top: -5,
+    right: -5,
+    backgroundColor: "#2563eb",
     borderRadius: 10,
-    width: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 18,
+    height: 18,
+    alignItems: "center",
+    justifyContent: "center",
   },
   filterBadgeText: {
     fontSize: 10,
-    fontWeight: 'bold',
-    color: '#ffffff',
+    color: "#fff",
+    fontWeight: "600",
   },
   chatList: {
-    backgroundColor: '#ffffff',
-    flex: 1,
+    paddingVertical: 8,
   },
   chatCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#f3f4f6',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
     marginHorizontal: 16,
-    marginTop: 8,
-    borderRadius: 12,
+    marginVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
   },
   avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#dbeafe',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#E0E7FF",
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
   },
   chatInfo: {
     flex: 1,
   },
   chatName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 4,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#111827",
+    marginBottom: 3,
   },
   chatPreview: {
-    fontSize: 14,
-    color: '#1f2937',
+    fontSize: 13,
+    color: "#6b7280",
   },
   chatRight: {
-    alignItems: 'flex-end',
-    gap: 4,
-  },
-  attachmentIcon: {
-    marginBottom: 4,
+    alignItems: "flex-end",
+    justifyContent: "center",
   },
   unreadBadge: {
-    backgroundColor: '#2563eb',
+    backgroundColor: "#2563eb",
     borderRadius: 12,
-    minWidth: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
+    minWidth: 22,
+    height: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 6,
   },
   unreadBadgeText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#fff",
   },
 });
-
