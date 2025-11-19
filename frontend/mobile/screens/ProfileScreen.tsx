@@ -44,6 +44,7 @@ interface Trade {
 export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) {
   const [user, setUser] = useState<User | null>(null);
   const [userListings, setUserListings] = useState<Trade[]>([]);
+  const [userLookingFors, setUserLookingFors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [editingName, setEditingName] = useState('');
@@ -114,6 +115,15 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
           setEditingBio(fallbackUser.bio || '');
           setProfileImageUri(fallbackUser.profile_picture_url || null);
         }
+      }
+
+      // Fetch user looking fors
+      const lookingFors = await fetch(`${apiUrl}/api/looking-for/${authUser.id}`);
+      if (lookingFors.ok) {
+        const lookingForsData = await lookingFors.json();
+        setUserLookingFors(lookingForsData.items ?? []);
+      } else {
+        console.error('Failed to fetch looking-for items:', lookingFors.status, lookingFors.statusText);
       }
 
       // Fetch user's listings
@@ -486,6 +496,21 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
               )}
             </View>
 
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Looking for</Text>
+              {userLookingFors && userLookingFors.length > 0 ? (
+                <View style={styles.tagsContainer}>
+                  {userLookingFors.map((item, index) => (
+                    <View key={index} style={styles.tag}>
+                      <Text style={styles.tagText}>{item}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.emptyText}>No items set</Text>
+              )}
+            </View>
+
             {/* Listings Section */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Listings</Text>
@@ -721,6 +746,23 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     textAlign: 'center',
     paddingVertical: 20,
+  },
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  tag: {
+    backgroundColor: '#e5e7eb',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginBottom: 4,
+  },
+  tagText: {
+    fontSize: 14,
+    color: '#374151',
+    fontWeight: '500',
   },
   listingsGrid: {
     flexDirection: 'row',
