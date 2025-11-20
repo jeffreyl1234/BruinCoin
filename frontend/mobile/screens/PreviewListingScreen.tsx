@@ -20,6 +20,7 @@ export interface ListingData {
   category: string;
   selectedOption: string | null;
   images?: string[];
+  tags?: string[];
 }
 
 interface PreviewListingScreenProps {
@@ -99,6 +100,20 @@ export default function PreviewListingScreen({
                 </>
               )}
             </View>
+
+            {/* Tags Section */}
+            {listingData.tags && listingData.tags.length > 0 && (
+              <View style={styles.tagsSection}>
+                <Text style={styles.sectionTitle}>Tags</Text>
+                <View style={styles.tagsContainer}>
+                  {listingData.tags.map((tag, index) => (
+                    <View key={index} style={styles.tagPill}>
+                      <Text style={styles.tagText}>{tag}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
 
             {/* Description Section */}
             <View style={styles.descriptionSection}>
@@ -250,6 +265,25 @@ const styles = StyleSheet.create({
     height: 200,
     backgroundColor: '#f3f4f6',
     borderRadius: 12,
+  },
+  tagsSection: {
+  marginBottom: 20,
+  },
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  tagPill: {
+    backgroundColor: '#e5e7eb',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  tagText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#1f2937',
   },
   descriptionSection: {
     marginBottom: 20,

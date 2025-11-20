@@ -36,6 +36,8 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
   const [isPublishing, setIsPublishing] = useState(false);
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [customTagInput, setCustomTagInput] = useState('');
 
   const apiUrl = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:3001';
 
@@ -252,6 +254,10 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
         tradeData.image_urls = imageUrls;
       }
 
+      if (selectedTags.length > 0) {
+        tradeData.tags = selectedTags;
+      }
+
       // Add price if it's a Sell option
       if (selectedOption === 'Sell' && price.trim()) {
         const priceNum = parseFloat(price.trim());
@@ -294,6 +300,8 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
             setSelectedOption(null);
             setSelectedCategory('Events');
             setSelectedImages([]);
+            setSelectedTags([]);
+            setCustomTagInput('');
           },
         },
       ]);
@@ -312,6 +320,7 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
     category: selectedCategory,
     selectedOption,
     images: selectedImages,
+    tags: selectedTags,
   };
 
   return (
@@ -399,10 +408,64 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Tags</Text>
-                <TouchableOpacity style={styles.tagButton}>
-                  <Text style={styles.tagButtonText}>Select</Text>
-                </TouchableOpacity>
+               <Text style={styles.inputLabel}>Tags</Text>
+                {/* Tag Input */}
+                <View style={styles.tagInputContainer}>
+                  <TextInput
+                    style={styles.tagInput}
+                    placeholder="e.g. furniture, bike, resume help"
+                    placeholderTextColor="#9ca3af"
+                    value={customTagInput}
+                    onChangeText={setCustomTagInput}
+                    maxLength={30}
+                    returnKeyType="done"
+                    onSubmitEditing={() => {
+                      const trimmedTag = customTagInput.trim();
+                      if (trimmedTag && !selectedTags.includes(trimmedTag)) {
+                        setSelectedTags([...selectedTags, trimmedTag]);
+                        setCustomTagInput('');
+                      }
+                    }}
+                  />
+                  <TouchableOpacity
+                    style={[
+                      styles.addTagButton,
+                      !customTagInput.trim() && styles.addTagButtonDisabled
+                    ]}
+                    onPress={() => {
+                      const trimmedTag = customTagInput.trim();
+                      if (trimmedTag && !selectedTags.includes(trimmedTag)) {
+                        setSelectedTags([...selectedTags, trimmedTag]);
+                        setCustomTagInput('');
+                      }
+                    }}
+                    disabled={!customTagInput.trim()}
+                  >
+                    <Text style={[
+                      styles.addTagButtonText,
+                      !customTagInput.trim() && styles.addTagButtonTextDisabled
+                    ]}>
+                      Add
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                
+                {/* Selected Tags Display */}
+                {selectedTags.length > 0 && (
+                  <View style={styles.selectedTagsContainer}>
+                    {selectedTags.map((tag, index) => (
+                      <View key={index} style={styles.selectedTag}>
+                        <Text style={styles.selectedTagText}>{tag}</Text>
+                        <TouchableOpacity
+                          onPress={() => setSelectedTags(selectedTags.filter(t => t !== tag))}
+                          style={styles.removeTagButton}
+                        >
+                          <Ionicons name="close" size={14} color="#1f2937" />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                )}
               </View>
 
               <View style={styles.inputGroup}>
@@ -633,17 +696,62 @@ const styles = StyleSheet.create({
     color: '#1f2937',
     fontWeight: '600',
   },
-  tagButton: {
-    backgroundColor: '#f3f4f6',
-    borderRadius: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    alignSelf: 'flex-start',
+  tagInputContainer: {
+  flexDirection: 'row',
+  gap: 8,
+  marginBottom: 12,
   },
-  tagButtonText: {
+  tagInput: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#1f2937',
+  },
+  addTagButton: {
+    backgroundColor: '#1f2937',
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addTagButtonDisabled: {
+    backgroundColor: '#d1d5db',
+  },
+  addTagButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  addTagButtonTextDisabled: {
+    color: '#9ca3af',
+  },
+  selectedTagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  selectedTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e5e7eb',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    gap: 6,
+  },
+  selectedTagText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#9ca3af',
+    color: '#1f2937',
+  },
+  removeTagButton: {
+    padding: 2,
   },
   optionsContainer: {
     flexDirection: 'row',
