@@ -29,6 +29,9 @@ interface User {
   bio: string | null;
   rating: number | null;
   profile_picture_url: string | null;
+  trade_preferences?: string[] | null;
+  category_preferences?: string[] | null;
+  interests?: string[] | null;
 }
 
 interface Trade {
@@ -44,7 +47,13 @@ interface Trade {
 export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) {
   const [user, setUser] = useState<User | null>(null);
   const [userListings, setUserListings] = useState<Trade[]>([]);
-  const [userLookingFors, setUserLookingFors] = useState<any[]>([]);
+  const [tradePreferences, setTradePreferences] = useState<string[]>([]);
+  const [categoryPreferences, setCategoryPreferences] = useState<string[]>([]);
+  const [interests, setInterests] = useState<string[]>([]);
+  const [displayNameOverride, setDisplayNameOverride] = useState('');
+  const [emailAddress, setEmailAddress] = useState('');
+  const [profileBio, setProfileBio] = useState('');
+  const [profileImageSavedUri, setProfileImageSavedUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [editingName, setEditingName] = useState('');
@@ -71,15 +80,61 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
         return;
       }
 
+      setEmailAddress(authUser.email || '');
+
+      const metadata = authUser.user_metadata ?? {};
+
+      const metadataDisplayName =
+        typeof metadata.display_name === 'string' ? metadata.display_name.trim() : '';
+      const metadataBio =
+        typeof metadata.bio === 'string' ? metadata.bio : '';
+      const metadataProfileUrl =
+        typeof metadata.profile_picture_url === 'string' && metadata.profile_picture_url.length > 0
+          ? metadata.profile_picture_url
+          : null;
+
+      const metadataTradePrefs = Array.isArray(metadata.trade_preferences)
+        ? metadata.trade_preferences.map((item: any) => String(item))
+        : typeof metadata.trade_preferences === 'string'
+          ? metadata.trade_preferences.split(',').map(item => item.trim()).filter(Boolean)
+          : [];
+      const metadataCategoryPrefs = Array.isArray(metadata.category_preferences)
+        ? metadata.category_preferences.map((item: any) => String(item))
+        : typeof metadata.category_preferences === 'string'
+          ? metadata.category_preferences.split(',').map(item => item.trim()).filter(Boolean)
+          : [];
+      const metadataInterests = Array.isArray(metadata.interests)
+        ? metadata.interests.map((item: any) => String(item))
+        : typeof metadata.interests === 'string'
+          ? metadata.interests.split(',').map(item => item.trim()).filter(Boolean)
+          : [];
+
+      let dbTradePrefs: string[] = [];
+      let dbCategoryPrefs: string[] = [];
+      let dbInterests: string[] = [];
+
+      let resolvedName = metadataDisplayName;
+      let resolvedBio = metadataBio;
+      let resolvedProfileUrl = metadataProfileUrl;
+
       // Fetch user profile from API
       const userResponse = await fetch(`${apiUrl}/api/users/${authUser.id}`);
       if (userResponse.ok) {
         const userData = await userResponse.json();
         if (userData.user) {
           setUser(userData.user);
-          setEditingName(userData.user.user_name || '');
-          setEditingBio(userData.user.bio || '');
-          setProfileImageUri(userData.user.profile_picture_url || null);
+          resolvedName = resolvedName || userData.user.user_name || '';
+          resolvedBio = resolvedBio || userData.user.bio || '';
+          resolvedProfileUrl = resolvedProfileUrl || userData.user.profile_picture_url || null;
+          if (Array.isArray(userData.user.trade_preferences)) {
+            dbTradePrefs = userData.user.trade_preferences.map((item: any) => String(item));
+          }
+          if (Array.isArray(userData.user.category_preferences)) {
+            dbCategoryPrefs = userData.user.category_preferences.map((item: any) => String(item));
+          }
+          if (Array.isArray(userData.user.interests)) {
+            dbInterests = userData.user.interests.map((item: any) => String(item));
+          }
         }
       } else if (userResponse.status === 404) {
         // User doesn't exist in users table, create one
@@ -99,6 +154,18 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
           const createData = await createResponse.json();
           if (createData.user) {
             setUser(createData.user);
+            resolvedName = resolvedName || createData.user.user_name || '';
+            resolvedBio = resolvedBio || createData.user.bio || '';
+            resolvedProfileUrl = resolvedProfileUrl || createData.user.profile_picture_url || null;
+            if (Array.isArray(createData.user.trade_preferences)) {
+              dbTradePrefs = createData.user.trade_preferences.map((item: any) => String(item));
+            }
+            if (Array.isArray(createData.user.category_preferences)) {
+              dbCategoryPrefs = createData.user.category_preferences.map((item: any) => String(item));
+            }
+            if (Array.isArray(createData.user.interests)) {
+              dbInterests = createData.user.interests.map((item: any) => String(item));
+            }
           }
         } else {
           // Fallback to auth user data if creation fails
@@ -109,21 +176,15 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
             bio: null,
             rating: null,
             profile_picture_url: null,
+            trade_preferences: null,
+            category_preferences: null,
+            interests: null,
           };
           setUser(fallbackUser);
-          setEditingName(fallbackUser.user_name || '');
-          setEditingBio(fallbackUser.bio || '');
-          setProfileImageUri(fallbackUser.profile_picture_url || null);
+          resolvedName = resolvedName || fallbackUser.user_name || '';
+          resolvedBio = resolvedBio || fallbackUser.bio || '';
+          resolvedProfileUrl = resolvedProfileUrl || fallbackUser.profile_picture_url || null;
         }
-      }
-
-      // Fetch user looking fors
-      const lookingFors = await fetch(`${apiUrl}/api/looking-for/${authUser.id}`);
-      if (lookingFors.ok) {
-        const lookingForsData = await lookingFors.json();
-        setUserLookingFors(lookingForsData.items ?? []);
-      } else {
-        console.error('Failed to fetch looking-for items:', lookingFors.status, lookingFors.statusText);
       }
 
       // Fetch user's listings
@@ -136,6 +197,28 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
       } else {
         console.error('Failed to fetch listings:', listingsResponse.status, listingsResponse.statusText);
       }
+
+      const combinedTradePrefs = metadataTradePrefs.length > 0 ? metadataTradePrefs : dbTradePrefs;
+      const combinedCategoryPrefs = metadataCategoryPrefs.length > 0 ? metadataCategoryPrefs : dbCategoryPrefs;
+      const combinedInterests = metadataInterests.length > 0 ? metadataInterests : dbInterests;
+
+      setTradePreferences(combinedTradePrefs);
+      setCategoryPreferences(combinedCategoryPrefs);
+      setInterests(combinedInterests);
+
+      const normalizedName = resolvedName || '';
+      const normalizedBio = resolvedBio || '';
+      const normalizedProfileUri = resolvedProfileUrl || null;
+
+      setProfileBio(normalizedBio);
+      setEditingName(normalizedName);
+      setEditingBio(normalizedBio);
+      setProfileImageUri(normalizedProfileUri);
+      setProfileImageSavedUri(normalizedProfileUri);
+      setDisplayNameOverride(
+        normalizedName ||
+          (authUser.email ? authUser.email.split('@')[0].replace(/\./g, ' ') : '')
+      );
     } catch (error) {
       console.error('Failed to fetch user data:', error);
     } finally {
@@ -155,6 +238,7 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
   };
 
   const getUsername = () => {
+    if (displayNameOverride) return displayNameOverride;
     if (user?.user_name) return user.user_name;
     if (user?.email) {
       const emailPart = user.email.split('@')[0];
@@ -165,6 +249,7 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
   };
 
   const getDisplayName = () => {
+    if (displayNameOverride) return displayNameOverride;
     if (user?.user_name) return user.user_name;
     if (user?.email) {
       const emailPart = user.email.split('@')[0];
@@ -176,14 +261,66 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
     return 'User';
   };
 
+  const normalizeList = (items: string[]) => {
+    const seen = new Set<string>();
+    const result: string[] = [];
+
+    items.forEach((raw) => {
+      if (typeof raw !== 'string') return;
+      const trimmed = raw.trim();
+      if (!trimmed) return;
+      const key = trimmed.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      const formatted = trimmed
+        .replace(/\s+/g, ' ')
+        .split(' ')
+        .map(word => (word.length > 0 ? word[0].toUpperCase() + word.slice(1) : ''))
+        .join(' ');
+      result.push(formatted);
+    });
+
+    return result;
+  };
+
+  const renderChipGroup = (items: string[], emptyLabel: string) => {
+    if (!items || items.length === 0) {
+      return <Text style={styles.emptyText}>{emptyLabel}</Text>;
+    }
+
+    return (
+      <View style={styles.tagsContainer}>
+        {items.map((item, index) => (
+          <View key={`${item}-${index}`} style={styles.tag}>
+            <Text style={styles.tagText}>{item}</Text>
+          </View>
+        ))}
+      </View>
+    );
+  };
+
+  const normalizedTradePreferences = normalizeList(tradePreferences);
+  const normalizedInterests = normalizeList(interests);
+  const normalizedFocusCategories = normalizeList(categoryPreferences);
+  const quickTradePreview = normalizedTradePreferences.slice(0, 3);
+  const emailToShow = emailAddress || user?.email || '';
+  const displayNameLabel = getDisplayName();
+  const profileInitial = displayNameLabel.trim().charAt(0).toUpperCase() || 'B';
+
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure you want to log out?", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Logout",
         style: "destructive",
-        onPress: () => {
-          if (onLogout) onLogout();
+        onPress: async () => {
+          try {
+            await supabase.auth.signOut();
+          } catch (error) {
+            console.error('Failed to sign out:', error);
+          } finally {
+            if (onLogout) onLogout();
+          }
         },
       },
     ]);
@@ -191,16 +328,15 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
 
   const handleEdit = () => {
     setIsEditing(true);
-    setEditingName(user?.user_name || '');
-    setEditingBio(user?.bio || '');
-    setProfileImageUri(user?.profile_picture_url || null);
+    setEditingName(displayNameLabel);
+    setEditingBio(profileBio);
   };
 
   const handleCancel = () => {
     setIsEditing(false);
-    setEditingName(user?.user_name || '');
-    setEditingBio(user?.bio || '');
-    setProfileImageUri(user?.profile_picture_url || null);
+    setEditingName(displayNameLabel);
+    setEditingBio(profileBio);
+    setProfileImageUri(profileImageSavedUri);
   };
 
   const pickProfileImage = async () => {
@@ -314,6 +450,14 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
         }
       }
 
+      await supabase.auth.updateUser({
+        data: {
+          display_name: editingName.trim(),
+          bio: editingBio.trim(),
+          profile_picture_url: profilePictureUrl || '',
+        },
+      });
+
       // Update user profile
       const updateData: Record<string, string> = {};
       if (editingName.trim() !== (user.user_name || '')) {
@@ -350,6 +494,10 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
       const responseData = await response.json();
       if (responseData.user) {
         setUser(responseData.user);
+        setDisplayNameOverride(editingName.trim());
+        setProfileBio(editingBio.trim());
+        setProfileImageUri(profilePictureUrl || null);
+        setProfileImageSavedUri(profilePictureUrl || null);
         setIsEditing(false);
         Alert.alert('Success', 'Profile updated successfully!');
       }
@@ -368,7 +516,11 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
         <Text style={styles.topBarText}>Seller Profile Page</Text>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Navigation Bar */}
         <View style={styles.navBar}>
           <TouchableOpacity onPress={onBack} style={styles.backButton}>
@@ -412,34 +564,38 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
           </View>
         ) : (
           <>
-            {/* Profile Information */}
-            <View style={styles.profileSection}>
-              <View style={styles.profileImageContainer}>
-                <TouchableOpacity 
+        {/* Profile Information */}
+        <View style={styles.profileSection}>
+          <View style={styles.profileImageContainer}>
+                <TouchableOpacity
                   onPress={isEditing ? pickProfileImage : undefined}
                   disabled={!isEditing}
                   style={styles.profileImageTouchable}
                 >
-                  <View style={styles.profileImage}>
+            <View style={styles.profileImage}>
                     {profileImageUri ? (
-                      <Image 
-                        source={{ uri: profileImageUri }} 
-                        style={styles.profileImageInner}
-                        resizeMode="cover"
+                      <Image
+                        source={{ uri: profileImageUri }}
+                        style={styles.profileImagePhoto}
                       />
                     ) : (
-                      <View style={styles.profileImageInner} />
+                      <View style={styles.profileImagePlaceholder}>
+                        <Text style={styles.profileImageInitial}>
+                          {profileInitial}
+                        </Text>
+                      </View>
                     )}
                     {isEditing && (
                       <View style={styles.profileImageOverlay}>
                         <Ionicons name="camera" size={24} color="#ffffff" />
                       </View>
                     )}
-                  </View>
+            </View>
                 </TouchableOpacity>
-              </View>
-              <View style={styles.profileInfo}>
-                <View style={styles.nameRow}>
+          </View>
+
+          <View style={styles.profileInfo}>
+            <View style={styles.nameRow}>
                   {isEditing ? (
                     <TextInput
                       style={styles.nameInput}
@@ -449,88 +605,121 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
                       placeholderTextColor="#9ca3af"
                     />
                   ) : (
-                    <Text style={styles.profileName}>{getDisplayName()}</Text>
+                    <Text style={styles.profileName}>{displayNameLabel}</Text>
                   )}
                   {!isEditing && (
-                    <TouchableOpacity style={styles.messageButton}>
-                      <Ionicons name="mail-outline" size={24} color="#3b82f6" />
-                    </TouchableOpacity>
+                <TouchableOpacity style={styles.messageButton}>
+                  <Ionicons name="mail-outline" size={24} color="#3b82f6" />
+                </TouchableOpacity>
                   )}
-                </View>
-                {!isEditing && (
-                  <View style={styles.ratingContainer}>
-                    {[...Array(5)].map((_, i) => {
-                      const rating = user?.rating || 0;
-                      const filled = i < Math.floor(rating);
-                      return (
-                        <View key={i} style={i > 0 ? { marginLeft: 2 } : undefined}>
-                          <Ionicons 
-                            name="star" 
-                            size={20} 
-                            color={filled ? "#3b82f6" : "#e5e7eb"} 
-                          />
-                        </View>
-                      );
-                    })}
+            </View>
+
+            {!!emailToShow && (
+              <Text style={styles.profileEmail}>{emailToShow}</Text>
+            )}
+
+            {!isEditing && quickTradePreview.length > 0 && (
+              <View style={styles.quickTagsRow}>
+                {quickTradePreview.map((item, index) => (
+                  <View key={`${item}-${index}`} style={styles.quickTag}>
+                    <Text style={styles.quickTagText}>{item}</Text>
+                  </View>
+                ))}
+                {normalizedTradePreferences.length > quickTradePreview.length && (
+                  <View style={styles.quickTag}>
+                    <Text style={styles.quickTagText}>
+                      +{normalizedTradePreferences.length - quickTradePreview.length}
+                    </Text>
                   </View>
                 )}
               </View>
-            </View>
+            )}
 
-            {/* About Section */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>About</Text>
-              {isEditing ? (
-                <TextInput
-                  style={styles.bioInput}
-                  value={editingBio}
-                  onChangeText={setEditingBio}
-                  placeholder="Tell us about yourself..."
-                  placeholderTextColor="#9ca3af"
-                  multiline
-                  numberOfLines={4}
-                  textAlignVertical="top"
-                />
-              ) : (
-                <Text style={styles.bioText}>{user?.bio || 'No bio yet'}</Text>
-              )}
-            </View>
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Looking for</Text>
-              {userLookingFors && userLookingFors.length > 0 ? (
-                <View style={styles.tagsContainer}>
-                  {userLookingFors.map((item, index) => (
-                    <View key={index} style={styles.tag}>
-                      <Text style={styles.tagText}>{item}</Text>
+            {!isEditing && (
+              <View style={styles.ratingContainer}>
+                {[...Array(5)].map((_, i) => {
+                  const rating = user?.rating || 0;
+                  const filled = i < Math.floor(rating);
+                  return (
+                    <View key={i} style={i > 0 ? styles.ratingStarSpacing : undefined}>
+                      <Ionicons
+                        name="star"
+                        size={20}
+                        color={filled ? "#3b82f6" : "#e5e7eb"}
+                      />
                     </View>
-                  ))}
-                </View>
-              ) : (
-                <Text style={styles.emptyText}>No items set</Text>
-              )}
-            </View>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        </View>
 
-            {/* Listings Section */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Listings</Text>
-              {userListings.length > 0 ? (
-                <View style={styles.listingsGrid}>
-                  {userListings.map((listing) => (
-                    <View key={listing.id} style={styles.listingCard}>
-                      <View style={styles.listingImage} />
-                      <Text style={styles.listingTitle} numberOfLines={2}>{listing.title}</Text>
-                      <View style={styles.listingStatusContainer}>
-                        <View style={styles.listingStatusDot} />
-                        <Text style={styles.listingStatusText}>{formatPrice(listing)}</Text>
-                      </View>
-                    </View>
-                  ))}
+        {/* About Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>About</Text>
+          {isEditing ? (
+            <TextInput
+              style={styles.bioInput}
+              value={editingBio}
+              onChangeText={setEditingBio}
+              placeholder="Tell us about yourself..."
+              placeholderTextColor="#9ca3af"
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+          ) : (
+            <Text style={styles.bioText}>
+              {profileBio ? profileBio : 'No bio yet'}
+            </Text>
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Interests</Text>
+          {renderChipGroup(
+            normalizedInterests,
+            'Add a few interests to help Bruins get to know you.'
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Trade Preferences</Text>
+          {renderChipGroup(
+            normalizedTradePreferences,
+            'Choose if you are here to buy, sell, or trade.'
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Focus Categories</Text>
+          {renderChipGroup(
+            normalizedFocusCategories,
+            'Pick categories you want to see more of.'
+          )}
+        </View>
+
+        {/* Listings Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Listings</Text>
+          {userListings.length > 0 ? (
+            <View style={styles.listingsGrid}>
+              {userListings.map((listing) => (
+                <View key={listing.id} style={styles.listingCard}>
+                  <View style={styles.listingImage} />
+                  <Text style={styles.listingTitle} numberOfLines={2}>{listing.title}</Text>
+                  <View style={styles.listingStatusContainer}>
+                    <View style={styles.listingStatusDot} />
+                    <Text style={styles.listingStatusText}>{formatPrice(listing)}</Text>
+                  </View>
                 </View>
-              ) : (
-                <Text style={styles.emptyText}>No listings yet</Text>
-              )}
+              ))}
             </View>
+          ) : (
+            <Text style={styles.emptyText}>No listings yet</Text>
+          )}
+        </View>
           </>
         )}
         <View style={styles.logoutContainer}>
@@ -561,6 +750,9 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 48,
   },
   navBar: {
     flexDirection: 'row',
@@ -622,30 +814,47 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     backgroundColor: '#ffffff',
     marginTop: 8,
+    marginHorizontal: 12,
+    borderRadius: 18,
+    shadowColor: '#000000',
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+    elevation: 3,
   },
   profileImageContainer: {
     marginRight: 16,
   },
   profileImageTouchable: {
-    width: 100,
-    height: 100,
+    width: 110,
+    height: 110,
   },
   profileImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#f3f4f6',
+    width: '100%',
+    height: '100%',
+    borderRadius: 55,
+    backgroundColor: '#e2e8f0',
     borderWidth: 3,
-    borderColor: '#3b82f6',
+    borderColor: '#2563eb',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  profileImageInner: {
-    width: 94,
-    height: 94,
-    borderRadius: 47,
-    backgroundColor: '#e5e7eb',
+  profileImagePhoto: {
+    width: '100%',
+    height: '100%',
+  },
+  profileImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#dbeafe',
+  },
+  profileImageInitial: {
+    fontSize: 40,
+    fontWeight: '700',
+    color: '#1d4ed8',
   },
   profileImageOverlay: {
     position: 'absolute',
@@ -654,7 +863,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 50,
+    borderRadius: 55,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -673,6 +882,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#1f2937',
   },
+  profileEmail: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 4,
+  },
   nameInput: {
     flex: 1,
     fontSize: 24,
@@ -688,11 +902,40 @@ const styles = StyleSheet.create({
   ratingContainer: {
     flexDirection: 'row',
   },
+  ratingStarSpacing: {
+    marginLeft: 2,
+  },
+  quickTagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 12,
+    marginHorizontal: -4,
+  },
+  quickTag: {
+    backgroundColor: '#dbeafe',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    marginHorizontal: 4,
+    marginBottom: 8,
+  },
+  quickTagText: {
+    fontSize: 12,
+    color: '#1d4ed8',
+    fontWeight: '600',
+  },
   section: {
     backgroundColor: '#ffffff',
     paddingHorizontal: 16,
     paddingVertical: 20,
     marginTop: 8,
+    marginHorizontal: 12,
+    borderRadius: 16,
+    shadowColor: '#000000',
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+    elevation: 3,
   },
   sectionTitle: {
     fontSize: 18,
@@ -700,29 +943,10 @@ const styles = StyleSheet.create({
     color: '#1f2937',
     marginBottom: 12,
   },
-  bulletList: {
-  },
-  bulletItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  bullet: {
-    fontSize: 16,
-    color: '#1f2937',
-    marginRight: 8,
-    marginTop: 2,
-  },
-  bulletText: {
-    flex: 1,
-    fontSize: 14,
-    color: '#1f2937',
-    lineHeight: 20,
-  },
   bioText: {
     fontSize: 14,
     color: '#1f2937',
-    lineHeight: 20,
+    lineHeight: 22,
   },
   bioInput: {
     fontSize: 14,
@@ -750,19 +974,20 @@ const styles = StyleSheet.create({
   tagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    marginHorizontal: -6,
   },
   tag: {
-    backgroundColor: '#e5e7eb',
-    borderRadius: 16,
-    paddingHorizontal: 16,
+    backgroundColor: '#e0f2fe',
+    borderRadius: 18,
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    marginBottom: 4,
+    marginHorizontal: 6,
+    marginBottom: 10,
   },
   tagText: {
     fontSize: 14,
-    color: '#374151',
-    fontWeight: '500',
+    color: '#0f172a',
+    fontWeight: '600',
   },
   listingsGrid: {
     flexDirection: 'row',
@@ -802,23 +1027,25 @@ const styles = StyleSheet.create({
     color: '#6b7280',
   },
   logoutContainer: {
-  alignItems: 'center',
-  marginTop: 24,
-  marginBottom: 40,
-},
-logoutButton: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'center',
-  backgroundColor: '#fee2e2',
-  borderRadius: 12,
-  paddingVertical: 12,
-  paddingHorizontal: 24,
-},
-logoutText: {
-  color: '#ef4444',
-  fontSize: 16,
-  fontWeight: '600',
-},
+    alignItems: 'stretch',
+    marginTop: 24,
+    marginBottom: 40,
+    marginHorizontal: 12,
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fee2e2',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    width: '100%',
+  },
+  logoutText: {
+    color: '#ef4444',
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });
 

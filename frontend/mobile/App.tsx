@@ -1,9 +1,10 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
+import OnboardingFlow from './screens/OnboardingFlow';
 import HomeScreen from './screens/HomeScreen';
 import SearchScreen from './screens/SearchScreen';
 import ProfileScreen from './screens/ProfileScreen';
@@ -13,13 +14,15 @@ import CreateListingScreen from './screens/CreateListingScreen';
 import SeeAllScreen from './screens/SeeAllScreen';
 import ListingDetailScreen from './screens/ListingDetailScreen';
 import BottomNavigation from './components/BottomNavigation';
+import { supabase } from './lib/supabaseClient';
 
 type Screen = 'home' | 'search' | 'profile' | 'messages';
-type AuthScreen = 'login' | 'register';
+type AuthScreen = 'login' | 'register' | 'onboarding';
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authScreen, setAuthScreen] = useState<AuthScreen>('login');
+  const [initializing, setInitializing] = useState(true);
   const [currentScreen, setCurrentScreen] = useState<Screen>('home');
   const [showCreateListing, setShowCreateListing] = useState(false);
   const [showSeeAll, setShowSeeAll] = useState(false);
@@ -55,22 +58,95 @@ export default function App() {
     setSelectedTradeId(null);
   };
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const bootstrapSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!isMounted) return;
+
+        if (session) {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!isMounted) return;
+
+          if (user?.user_metadata?.onboarding_complete) {
+            setIsLoggedIn(true);
+            setAuthScreen('login');
+          } else {
+            setIsLoggedIn(false);
+            setAuthScreen('onboarding');
+          }
+        }
+      } catch (error) {
+        console.error('Failed to restore session:', error);
+      } finally {
+        if (isMounted) {
+          setInitializing(false);
+        }
+      }
+    };
+
+    bootstrapSession();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // SeeAllScreen will fetch data from API, pass empty array for now
   const listings: any[] = [];
+
+  if (initializing) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2563eb" />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   // Show auth screens if not logged in
   if (!isLoggedIn) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <StatusBar style="auto" />
-        {authScreen === 'login' ? (
+        {authScreen === 'onboarding' ? (
+          <OnboardingFlow
+            onComplete={() => {
+              setIsLoggedIn(true);
+              setAuthScreen('login');
+            }}
+            onExit={() => {
+              setIsLoggedIn(false);
+              setAuthScreen('login');
+            }}
+          />
+        ) : authScreen === 'login' ? (
           <LoginScreen 
-            onLogin={() => setIsLoggedIn(true)} 
+            onLogin={({ requiresOnboarding }) => {
+              if (requiresOnboarding) {
+                setIsLoggedIn(false);
+                setAuthScreen('onboarding');
+              } else {
+                setIsLoggedIn(true);
+                setAuthScreen('login');
+              }
+            }} 
             onSwitchToRegister={() => setAuthScreen('register')}
           />
         ) : (
           <RegisterScreen 
-            onRegister={() => setIsLoggedIn(true)} 
+            onRegister={({ requiresOnboarding }) => {
+              if (requiresOnboarding) {
+                setIsLoggedIn(false);
+                setAuthScreen('onboarding');
+              } else {
+                setIsLoggedIn(true);
+                setAuthScreen('login');
+              }
+            }} 
             onSwitchToLogin={() => setAuthScreen('login')}
           />
         )}
@@ -150,5 +226,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

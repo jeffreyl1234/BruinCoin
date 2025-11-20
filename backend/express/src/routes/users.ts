@@ -3,6 +3,23 @@ import { supabase } from '../lib/supabase';
 
 const router = Router();
 
+const normalizeStringArray = (input: unknown): string[] => {
+  if (Array.isArray(input)) {
+    return input
+      .map((item) => (typeof item === 'string' ? item : String(item ?? '')).trim())
+      .filter((value) => value.length > 0);
+  }
+
+  if (typeof input === 'string') {
+    return input
+      .split(',')
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+  }
+
+  return [];
+};
+
 // GET /api/users - list users with optional search
 router.get('/', async (req, res) => {
   const limit = Math.min(Number(req.query.limit ?? 20), 100);
@@ -11,7 +28,7 @@ router.get('/', async (req, res) => {
 
   let query = supabase
     .from('users')
-    .select('id, email, user_name, created_at, bio, rating')
+    .select('id, email, user_name, created_at, bio, rating, profile_picture_url, trade_preferences, category_preferences, interests')
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
 
@@ -26,7 +43,7 @@ router.get('/', async (req, res) => {
 
 // POST /api/users - create a new user
 router.post('/', async (req, res) => {
-  const { id, email, user_name } = req.body ?? {};
+  const { id, email, user_name, bio, profile_picture_url, trade_preferences, category_preferences, interests } = req.body ?? {};
 
   if (!id || typeof id !== 'string') {
     return res.status(400).json({ error: 'id (uuid string) is required' });
@@ -37,11 +54,23 @@ router.post('/', async (req, res) => {
 
   const insertData: Record<string, unknown> = { id, email };
   if (typeof user_name === 'string') insertData.user_name = user_name;
+  if (typeof bio === 'string') insertData.bio = bio;
+  if (typeof profile_picture_url === 'string') insertData.profile_picture_url = profile_picture_url;
+
+  if (trade_preferences !== undefined) {
+    insertData.trade_preferences = normalizeStringArray(trade_preferences);
+  }
+  if (category_preferences !== undefined) {
+    insertData.category_preferences = normalizeStringArray(category_preferences);
+  }
+  if (interests !== undefined) {
+    insertData.interests = normalizeStringArray(interests);
+  }
 
   const { data, error } = await supabase
     .from('users')
     .insert([insertData])
-    .select('id, email, user_name, created_at, bio, rating')
+    .select('id, email, user_name, created_at, bio, rating, profile_picture_url, trade_preferences, category_preferences, interests')
     .single();
 
   if (error) {
@@ -49,7 +78,7 @@ router.post('/', async (req, res) => {
     if (error.code === '23505') { // Unique violation
       const { data: existingUser } = await supabase
         .from('users')
-        .select('id, email, user_name, created_at, bio, rating')
+        .select('id, email, user_name, created_at, bio, rating, profile_picture_url, trade_preferences, category_preferences, interests')
         .eq('id', id)
         .single();
       if (existingUser) {
@@ -67,7 +96,7 @@ router.get('/:id', async (req, res) => {
 
   const { data, error } = await supabase
     .from('users')
-    .select('id, email, user_name, created_at, bio, rating')
+    .select('id, email, user_name, created_at, bio, rating, profile_picture_url, trade_preferences, category_preferences, interests')
     .eq('id', id)
     .single();
 
@@ -79,12 +108,23 @@ router.get('/:id', async (req, res) => {
 // PATCH /api/users/:id - update user profile
 router.patch('/:id', async (req, res) => {
   const { id } = req.params;
-  const { user_name, email, bio } = req.body ?? {};
+  const { user_name, email, bio, profile_picture_url, trade_preferences, category_preferences, interests } = req.body ?? {};
 
   const update: Record<string, unknown> = {};
   if (typeof user_name === 'string') update.user_name = user_name;
   if (typeof email === 'string') update.email = email;
   if (typeof bio === 'string') update.bio = bio;
+  if (typeof profile_picture_url === 'string') update.profile_picture_url = profile_picture_url;
+
+  if (Object.prototype.hasOwnProperty.call(req.body ?? {}, 'trade_preferences')) {
+    update.trade_preferences = normalizeStringArray(trade_preferences);
+  }
+  if (Object.prototype.hasOwnProperty.call(req.body ?? {}, 'category_preferences')) {
+    update.category_preferences = normalizeStringArray(category_preferences);
+  }
+  if (Object.prototype.hasOwnProperty.call(req.body ?? {}, 'interests')) {
+    update.interests = normalizeStringArray(interests);
+  }
 
   if (Object.keys(update).length === 0) {
     return res.status(400).json({ error: 'Nothing to update' });
@@ -94,7 +134,7 @@ router.patch('/:id', async (req, res) => {
     .from('users')
     .update(update)
     .eq('id', id)
-    .select('id, email, user_name, created_at, bio, rating')
+    .select('id, email, user_name, created_at, bio, rating, profile_picture_url, trade_preferences, category_preferences, interests')
     .single();
 
   if (error) return res.status(500).json({ error: error.message });

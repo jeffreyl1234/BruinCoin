@@ -1,9 +1,9 @@
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
 interface LoginScreenProps {
-  onLogin: () => void;
+  onLogin: (result: { requiresOnboarding: boolean }) => void;
   onSwitchToRegister: () => void;
 }
 
@@ -47,7 +47,11 @@ export default function LoginScreen({ onLogin, onSwitchToRegister }: LoginScreen
       }
 
       if (data.user) {
-        onLogin();
+        const onboardingComplete =
+          data.user.user_metadata?.onboarding_complete === true ||
+          data.user.user_metadata?.onboarding_complete === 'true';
+
+        onLogin({ requiresOnboarding: !onboardingComplete });
       }
     } catch (error: any) {
       Alert.alert('Error', error.message || 'An unexpected error occurred');

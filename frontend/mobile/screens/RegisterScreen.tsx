@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabaseClient';
 import Constants from 'expo-constants';
 
 interface RegisterScreenProps {
-  onRegister: () => void;
+  onRegister: (result: { requiresOnboarding: boolean }) => void;
   onSwitchToLogin: () => void;
 }
 
@@ -93,8 +93,7 @@ export default function RegisterScreen({ onRegister, onSwitchToLogin }: Register
         // If session exists, user was auto-confirmed (email confirmation disabled)
         if (data.session) {
           // Email confirmation is disabled - user is automatically logged in
-          // Just call onRegister to proceed without showing alert
-          onRegister();
+          onRegister({ requiresOnboarding: true });
         } else {
           // Email confirmation is required (shouldn't happen if disabled, but handle it)
           Alert.alert(
