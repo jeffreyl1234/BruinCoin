@@ -34,6 +34,13 @@ export default function TradeCard({ trade, onPress, width = defaultCardWidth, sh
     return '';
   };
 
+  const getDotColor = (tradeOptions: string) => {
+    if (tradeOptions === 'Sell') return '#ef4444';
+    if (tradeOptions === 'Looking for') return '#22c55e';
+    if (tradeOptions === 'Trade') return '#eab308';
+    return '#9ca3af';
+  };
+
   return (
     <TouchableOpacity 
       style={[styles.card, { width }]}
@@ -62,7 +69,7 @@ export default function TradeCard({ trade, onPress, width = defaultCardWidth, sh
         )}
         
         <View style={styles.priceContainer}>
-          <View style={styles.statusDot} />
+          <View style={[styles.statusDot, { backgroundColor: getDotColor(trade.trade_options) }]} />
           <Text style={styles.price}>{formatPrice(trade)}</Text>
         </View>
       </View>
@@ -103,7 +110,6 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#FF6B6B',
     marginRight: 6,
   },
   price: {

@@ -324,7 +324,7 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
   };
 
   return (
-    <Modal visible={true} animationType="slide" presentationStyle="pageSheet">
+    <Modal visible={true} animationType="none" presentationStyle="overFullScreen">
       <SafeAreaView style={styles.modalContainer} edges={['top', 'bottom']}>
         <KeyboardAvoidingView 
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

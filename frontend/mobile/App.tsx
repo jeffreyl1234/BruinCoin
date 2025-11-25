@@ -26,14 +26,15 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('home');
   const [showCreateListing, setShowCreateListing] = useState(false);
   const [showSeeAll, setShowSeeAll] = useState(false);
-  const [seeAllType, setSeeAllType] = useState<'new' | 'recommended'>('new');
+  const [seeAllType, setSeeAllType] = useState<'new' | 'recommended' | 'all'>('new');
   const [showChat, setShowChat] = useState(false);
   const [currentChatId, setCurrentChatId] = useState<string>('');
   const [currentContactName, setCurrentContactName] = useState<string>('Josie Bruin');
   const [showListingDetail, setShowListingDetail] = useState(false);
   const [selectedTradeId, setSelectedTradeId] = useState<string | null>(null);
+  const [previousScreen, setPreviousScreen] = useState<{ screen: Screen; showSeeAll?: boolean; seeAllType?: 'new' | 'recommended' | 'all' } | null>(null);
 
-  const handleSeeAll = (type: 'new' | 'recommended') => {
+  const handleSeeAll = (type: 'new' | 'recommended' | 'all') => {
     setSeeAllType(type);
     setShowSeeAll(true);
   };
@@ -49,13 +50,31 @@ export default function App() {
   };
 
   const handleTradePress = (tradeId: string) => {
+    // Store current navigation state
+    setPreviousScreen({
+      screen: currentScreen,
+      showSeeAll: showSeeAll,
+      seeAllType: showSeeAll ? seeAllType : undefined
+    });
+    
     setSelectedTradeId(tradeId);
     setShowListingDetail(true);
+    setShowSeeAll(false); // Close SeeAll screen when navigating to listing detail
   };
 
   const handleListingDetailClose = () => {
     setShowListingDetail(false);
     setSelectedTradeId(null);
+    
+    // Restore previous navigation state
+    if (previousScreen) {
+      setCurrentScreen(previousScreen.screen);
+      if (previousScreen.showSeeAll) {
+        setShowSeeAll(true);
+        setSeeAllType(previousScreen.seeAllType || 'new');
+      }
+      setPreviousScreen(null);
+    }
   };
 
   useEffect(() => {
@@ -162,6 +181,7 @@ export default function App() {
         <HomeScreen 
           onSeeAllNew={() => handleSeeAll('new')}
           onSeeAllRecommended={() => handleSeeAll('recommended')}
+          onSeeAllAll={() => handleSeeAll('all')}
           onSearchPress={() => setCurrentScreen('search')}
           onTradePress={handleTradePress}
         />
@@ -208,8 +228,14 @@ export default function App() {
       <SeeAllScreen
         visible={showSeeAll}
         type={seeAllType}
-        listings={listings}
         onClose={() => setShowSeeAll(false)}
+        onTradePress={handleTradePress}
+        currentScreen={currentScreen}
+        onHomePress={() => setCurrentScreen('home')}
+        onSearchPress={() => setCurrentScreen('search')}
+        onMessagesPress={() => setCurrentScreen('messages')}
+        onProfilePress={() => setCurrentScreen('profile')}
+        onAddPress={() => setShowCreateListing(true)}
       />
 
       {/* Listing Detail Screen */}

@@ -48,7 +48,7 @@ export default function PreviewListingScreen({
   const descriptionLines = formatDescription(listingData.description);
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
+    <Modal visible={visible} animationType="none" presentationStyle="overFullScreen">
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         {/* Top Bar */}
         <View style={styles.topBar}>

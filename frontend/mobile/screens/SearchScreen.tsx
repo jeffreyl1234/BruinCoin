@@ -14,6 +14,8 @@ import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import Slider from '@react-native-community/slider';
 import TradeCard from '../components/TradeCard';
+import ScreenHeader from '../components/ScreenHeader';
+import FilterChip from '../components/FilterChip';
 
 interface SearchScreenProps {
   onTradePress?: (tradeId: string) => void;
@@ -204,23 +206,18 @@ export default function SearchScreen({ onTradePress }: SearchScreenProps) {
 
         {filterSection === 'category' && (
           <>
-            <View style={styles.filterHeader}>
-              <TouchableOpacity onPress={() => setFilterSection(null)}>
-                <Ionicons name="chevron-back" size={24} color="#000" />
-              </TouchableOpacity>
-              <Text style={styles.filterHeaderText}>Category</Text>
-            </View>
+            <ScreenHeader 
+              title="Category" 
+              onBack={() => setFilterSection(null)}
+            />
             <View style={styles.chipContainer}>
               {categories.map((category) => (
-                <TouchableOpacity
+                <FilterChip
                   key={category}
-                  style={[styles.chip, selectedCategory === category && styles.chipActive]}
+                  label={category}
+                  selected={selectedCategory === category}
                   onPress={() => setSelectedCategory(selectedCategory === category ? '' : category)}
-                >
-                  <Text style={[styles.chipText, selectedCategory === category && styles.chipTextActive]}>
-                    {category}
-                  </Text>
-                </TouchableOpacity>
+                />
               ))}
             </View>
           </>
@@ -228,12 +225,10 @@ export default function SearchScreen({ onTradePress }: SearchScreenProps) {
 
         {filterSection === 'price' && (
           <>
-            <View style={styles.filterHeader}>
-              <TouchableOpacity onPress={() => setFilterSection(null)}>
-                <Ionicons name="chevron-back" size={24} color="#000" />
-              </TouchableOpacity>
-              <Text style={styles.filterHeaderText}>Price Range</Text>
-            </View>
+            <ScreenHeader 
+              title="Price Range" 
+              onBack={() => setFilterSection(null)}
+            />
             <View style={styles.priceRangeContainer}>
               <View style={styles.priceLabels}>
                 <View style={styles.priceValueContainer}>
@@ -261,23 +256,18 @@ export default function SearchScreen({ onTradePress }: SearchScreenProps) {
 
         {filterSection === 'type' && (
           <>
-            <View style={styles.filterHeader}>
-              <TouchableOpacity onPress={() => setFilterSection(null)}>
-                <Ionicons name="chevron-back" size={24} color="#000" />
-              </TouchableOpacity>
-              <Text style={styles.filterHeaderText}>Type of Listing</Text>
-            </View>
+            <ScreenHeader 
+              title="Type of Listing" 
+              onBack={() => setFilterSection(null)}
+            />
             <View style={styles.chipContainer}>
               {tradeTypes.map((type) => (
-                <TouchableOpacity
+                <FilterChip
                   key={type}
-                  style={[styles.chip, selectedTradeType === type && styles.chipActive]}
+                  label={type}
+                  selected={selectedTradeType === type}
                   onPress={() => setSelectedTradeType(selectedTradeType === type ? '' : type)}
-                >
-                  <Text style={[styles.chipText, selectedTradeType === type && styles.chipTextActive]}>
-                    {type}
-                  </Text>
-                </TouchableOpacity>
+                />
               ))}
             </View>
           </>
@@ -285,12 +275,10 @@ export default function SearchScreen({ onTradePress }: SearchScreenProps) {
 
         {filterSection === 'sort' && (
           <>
-            <View style={styles.filterHeader}>
-              <TouchableOpacity onPress={() => setFilterSection(null)}>
-                <Ionicons name="chevron-back" size={24} color="#000" />
-              </TouchableOpacity>
-              <Text style={styles.filterHeaderText}>Sort by</Text>
-            </View>
+            <ScreenHeader 
+              title="Sort by" 
+              onBack={() => setFilterSection(null)}
+            />
             <View style={styles.sortContainer}>
               {sortOptions.map((option) => (
                 <TouchableOpacity
@@ -461,55 +449,28 @@ const styles = StyleSheet.create({
   },
   filterPanel: {
     backgroundColor: 'transparent',
-    padding: 20,
-    paddingTop: 0,
   },
   filterRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 16,
+    paddingHorizontal: 16,
   },
   filterRowText: {
     fontSize: 16,
-    color: '#000',
+    color: '#1f2937',
     fontWeight: '500',
-  },
-  filterHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-    gap: 12,
-  },
-  filterHeaderText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
   },
   chipContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
-  },
-  chip: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 25,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-  },
-  chipActive: {
-    backgroundColor: '#334155',
-  },
-  chipText: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
-  },
-  chipTextActive: {
-    color: '#FFFFFF',
+    paddingHorizontal: 16,
+    paddingBottom: 16,
   },
   priceRangeContainer: {
-    paddingVertical: 20,
+    paddingHorizontal: 16,
+    paddingBottom: 20,
   },
   priceLabels: {
     flexDirection: 'row',
@@ -521,13 +482,13 @@ const styles = StyleSheet.create({
   },
   priceLabel: {
     fontSize: 14,
-    color: '#666',
+    color: '#6b7280',
     fontWeight: '500',
     marginBottom: 4,
   },
   priceValue: {
     fontSize: 16,
-    color: '#000',
+    color: '#1f2937',
     fontWeight: '600',
   },
   slider: {
@@ -540,17 +501,19 @@ const styles = StyleSheet.create({
     height: 20,
   },
   sortContainer: {
-    gap: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
   },
   sortOption: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 12,
+    marginBottom: 8,
   },
   sortOptionText: {
     fontSize: 16,
-    color: '#000',
+    color: '#1f2937',
   },
   radioButton: {
     width: 20,
@@ -568,9 +531,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   sectionTitle: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#000',
+    color: '#1f2937',
     marginBottom: 16,
     marginTop: 8,
   },
@@ -594,8 +557,9 @@ const styles = StyleSheet.create({
     paddingVertical: 40,
   },
   emptyText: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 14,
+    color: '#6b7280',
+    paddingVertical: 20,
   },
 });
 

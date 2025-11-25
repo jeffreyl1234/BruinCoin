@@ -8,6 +8,7 @@ import TradeCard from '../components/TradeCard';
 interface HomeScreenProps {
   onSeeAllNew: () => void;
   onSeeAllRecommended: () => void;
+  onSeeAllAll: () => void;
   onSearchPress: () => void;
   onTradePress: (tradeId: string) => void;
 }
@@ -23,7 +24,7 @@ interface Trade {
   created_at: string;
 }
 
-export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSearchPress, onTradePress }: HomeScreenProps) {
+export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSeeAllAll, onSearchPress, onTradePress }: HomeScreenProps) {
   const [newTrades, setNewTrades] = useState<Trade[]>([]);
   const [recommendedTrades, setRecommendedTrades] = useState<Trade[]>([]);
   const [allTrades, setAllTrades] = useState<Trade[]>([]);
@@ -50,13 +51,13 @@ export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSearchP
       const allTradesData = await allTradesResponse.json();
       const allTrades = allTradesData.trades || [];
       
-      // Filter new trades (created in last 24 hours)
+      // Filter new trades (created in last week)
       const now = new Date();
-      const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       const newTrades = allTrades.filter((trade: Trade) => {
         if (!trade.created_at) return false;
         const createdAt = new Date(trade.created_at);
-        return createdAt >= twentyFourHoursAgo;
+        return createdAt >= oneWeekAgo;
       }).slice(0, 4);
       
       // Use same trades for recommended (first 4)
@@ -85,11 +86,24 @@ export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSearchP
     return '';
   };
 
+  const getDotColor = (tradeOptions: string) => {
+    switch (tradeOptions) {
+      case 'Sell': return '#ef4444';
+      case 'Looking for': return '#22c55e';
+      case 'Trade': return '#eab308';
+      default: return '#6b7280';
+    }
+  };
+
   return (
     <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
       {/* Header */}
       <View style={styles.headerContainer}>
-        <Text style={styles.appTitle}>bt🧑‍💼wn</Text>
+        <Image 
+          source={require('../assets/logo.png')} 
+          style={styles.logo}
+          resizeMode="contain"
+        />
       </View>
 
       {/* New Listings Section */}
@@ -130,7 +144,7 @@ export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSearchP
                   )}
                   <Text style={styles.listingTitle} numberOfLines={2}>{trade.title || 'Untitled'}</Text>
                   <View style={styles.priceContainer}>
-                    <View style={styles.statusDot} />
+                    <View style={[styles.statusDot, { backgroundColor: getDotColor(trade.trade_options) }]} />
                     <Text style={styles.price}>{formatPrice(trade)}</Text>
                   </View>
                 </TouchableOpacity>
@@ -180,7 +194,7 @@ export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSearchP
                   )}
                   <Text style={styles.listingTitle} numberOfLines={2}>{trade.title || 'Untitled'}</Text>
                   <View style={styles.priceContainer}>
-                    <View style={styles.statusDot} />
+                    <View style={[styles.statusDot, { backgroundColor: getDotColor(trade.trade_options) }]} />
                     <Text style={styles.price}>{formatPrice(trade)}</Text>
                   </View>
                 </TouchableOpacity>
@@ -196,6 +210,9 @@ export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSearchP
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>All Listings</Text>
+          <TouchableOpacity onPress={onSeeAllAll}>
+            <Text style={styles.seeAllText}>see all</Text>
+          </TouchableOpacity>
         </View>
         {loading ? (
           <View style={styles.loadingContainer}>
@@ -233,12 +250,11 @@ const styles = StyleSheet.create({
   headerContainer: {
     alignItems: 'center',
     paddingVertical: 20,
-    paddingTop: 60,
+    paddingTop: 40,
   },
-  appTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#000',
+  logo: {
+    width: 160,
+    height: 60,
   },
   section: {
     marginBottom: 24,
@@ -296,7 +312,6 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#FF6B6B',
     marginRight: 6,
   },
   price: {
