@@ -1,68 +1,96 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   Text,
   View,
   ScrollView,
-  TextInput,
   TouchableOpacity,
-} from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-
-interface Chat {
-  id: string;
-  name: string;
-  lastMessage: string;
-  unreadCount: number;
-  hasAttachment?: boolean;
-}
+  TextInput,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '../lib/supabaseClient';
+import { useNavigation } from '@react-navigation/native';
+import { Image } from 'react-native';
 
 interface MessagesLandingScreenProps {
   onChatPress: (chatId: string) => void;
 }
 
-const MOCK_CHATS: Chat[] = [
-  {
-    id: "1",
-    name: "Josie Bruin",
-    lastMessage: "Hi I also wanted to rideshare on...",
-    unreadCount: 9,
-    hasAttachment: true,
-  },
-  {
-    id: "2",
-    name: "Josie Bruin",
-    lastMessage: "Hi I also wanted to rideshare on...",
-    unreadCount: 9,
-  },
-  {
-    id: "3",
-    name: "Josie Bruin",
-    lastMessage: "Hi I also wanted to rideshare on...",
-    unreadCount: 9,
-  },
-  {
-    id: "4",
-    name: "Josie Bruin",
-    lastMessage: "Hi I also wanted to rideshare on...",
-    unreadCount: 9,
-  },
-  {
-    id: "5",
-    name: "Josie Bruin",
-    lastMessage: "Hi I also wanted to rideshare on...",
-    unreadCount: 9,
-  },
-];
+export default function MessagesLandingScreen({ onChatPress }: MessagesLandingScreenProps) {
+  const [searchText, setSearchText] = useState('');
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
-export default function MessagesLandingScreen({
-  onChatPress,
-}: MessagesLandingScreenProps) {
-  const [searchText, setSearchText] = useState("");
+  // ✅ Fetch user ID first
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data: userData, error } = await supabase.auth.getUser();
+      if (error) console.error('Error fetching user:', error.message);
+      setCurrentUserId(userData?.user?.id ?? null);
+    };
+    fetchUser();
+  }, []);
+
+  // ✅ Fetch conversations for logged-in user
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const fetchConversations = async () => {
+    const { data, error } = await supabase
+      .from('conversations')
+      .select(`
+        id,
+        user1_id,
+        user2_id,
+        created_at,
+        messages (
+          text,
+          created_at
+        )
+      `)
+      .or(`user1_id.eq.${currentUserId},user2_id.eq.${currentUserId}`)
+      .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error loading conversations:', error.message);
+        return;
+      }
+
+      const mapped = await Promise.all(
+        (data || []).map(async (chat: any) => {
+          const otherUserId =
+            chat.user1_id === currentUserId ? chat.user2_id : chat.user1_id;
+
+          // fetch that user's profile manually
+          const { data: profileData } = await supabase
+            .from('users')
+            .select('user_name, profile_picture_url')
+            .eq('id', otherUserId)
+            .maybeSingle();
+
+          const contactName = profileData?.user_name || `User ${otherUserId.slice(0, 6)}`;
+          const avatarUrl = profileData?.profile_picture_url || null;
+
+          return {
+            id: chat.id,
+            contactName,
+            avatarUrl,
+            lastMessage: chat.messages?.[0]?.text ?? 'No messages yet',
+            unreadCount: 0,
+            hasAttachment: false,
+          };
+        })
+      );
+
+      setConversations(mapped);
+    };
+
+    fetchConversations();
+  }, [currentUserId]);
 
   return (
-    <SafeAreaView style={[styles.container, { paddingTop: 4 }]} edges={["top", "bottom"]}>
+    <SafeAreaView style={[styles.container, { paddingTop: 4 }]} edges={['top', 'bottom']}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
@@ -75,7 +103,7 @@ export default function MessagesLandingScreen({
           </TouchableOpacity>
         </View>
 
-        {/* Search and Filter */}
+        {/* Search + Filter */}
         <View style={styles.searchSection}>
           <View style={styles.searchBar}>
             <Ionicons name="search-outline" size={18} color="#9ca3af" />
@@ -98,14 +126,21 @@ export default function MessagesLandingScreen({
 
         {/* Chat List */}
         <View style={styles.chatList}>
-          {MOCK_CHATS.map((chat) => (
+          {conversations.map((chat: any) => (
             <TouchableOpacity
               key={chat.id}
               style={styles.chatCard}
               onPress={() => onChatPress(chat.id)}
             >
               <View style={styles.avatar}>
-                <Ionicons name="person" size={30} color="#3b82f6" />
+                {chat.avatarUrl ? (
+                  <Image
+                    source={{ uri: chat.avatarUrl }}
+                    style={{ width: 48, height: 48, borderRadius: 24 }}
+                  />
+                ) : (
+                  <Ionicons name="person" size={30} color="#3b82f6" />
+                )}
               </View>
               <View style={styles.chatInfo}>
                 <Text style={styles.chatName}>{chat.name}</Text>
@@ -135,98 +170,69 @@ export default function MessagesLandingScreen({
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  scrollView: {
-    flex: 1,
-  },
+  container: { flex: 1, backgroundColor: '#fff' },
+  scrollView: { flex: 1 },
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingBottom: 16,
-    backgroundColor: "#fff",
+    backgroundColor: '#fff',
   },
-  editText: {
-    color: "#007AFF",
-    fontWeight: "600",
-    fontSize: 16,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#111827",
-  },
+  editText: { color: '#007AFF', fontWeight: '600', fontSize: 16 },
+  headerTitle: { fontSize: 20, fontWeight: '700', color: '#111827' },
   searchSection: {
-    flexDirection: "row",
+    flexDirection: 'row',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    alignItems: "center",
-    backgroundColor: "#fff",
+    alignItems: 'center',
+    backgroundColor: '#fff',
   },
   searchBar: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F2F4F7",
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F2F4F7',
     borderRadius: 12,
     paddingHorizontal: 12,
     height: 40,
     marginRight: 10,
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: "#111827",
-    marginLeft: 6,
-  },
+  searchInput: { flex: 1, fontSize: 14, color: '#111827', marginLeft: 6 },
   filterButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F2F4F7",
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F2F4F7',
     borderRadius: 12,
     paddingHorizontal: 12,
     height: 40,
-    position: "relative",
+    position: 'relative',
   },
-  filterText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#1f2937",
-    marginLeft: 4,
-  },
+  filterText: { fontSize: 14, fontWeight: '500', color: '#1f2937', marginLeft: 4 },
   filterBadge: {
-    position: "absolute",
+    position: 'absolute',
     top: -5,
     right: -5,
-    backgroundColor: "#2563eb",
+    backgroundColor: '#2563eb',
     borderRadius: 10,
     width: 18,
     height: 18,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  filterBadgeText: {
-    fontSize: 10,
-    color: "#fff",
-    fontWeight: "600",
-  },
-  chatList: {
-    paddingVertical: 8,
-  },
+  filterBadgeText: { fontSize: 10, color: '#fff', fontWeight: '600' },
+  chatList: { paddingVertical: 8 },
   chatCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
     marginHorizontal: 16,
     marginVertical: 4,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 14,
-    shadowColor: "#000",
+    shadowColor: '#000',
     shadowOpacity: 0.05,
     shadowRadius: 3,
     shadowOffset: { width: 0, height: 1 },
@@ -236,40 +242,23 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#E0E7FF",
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: '#E0E7FF',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 12,
   },
-  chatInfo: {
-    flex: 1,
-  },
-  chatName: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#111827",
-    marginBottom: 3,
-  },
-  chatPreview: {
-    fontSize: 13,
-    color: "#6b7280",
-  },
-  chatRight: {
-    alignItems: "flex-end",
-    justifyContent: "center",
-  },
+  chatInfo: { flex: 1 },
+  chatName: { fontSize: 15, fontWeight: '600', color: '#111827', marginBottom: 3 },
+  chatPreview: { fontSize: 13, color: '#6b7280' },
+  chatRight: { alignItems: 'flex-end', justifyContent: 'center' },
   unreadBadge: {
-    backgroundColor: "#2563eb",
+    backgroundColor: '#2563eb',
     borderRadius: 12,
     minWidth: 22,
     height: 22,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 6,
   },
-  unreadBadgeText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#fff",
-  },
+  unreadBadgeText: { fontSize: 11, fontWeight: '600', color: '#fff' },
 });

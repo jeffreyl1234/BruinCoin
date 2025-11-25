@@ -30,12 +30,14 @@ interface ListingDetailScreenProps {
   visible: boolean;
   tradeId: string | null;
   onClose: () => void;
+  navigation: any;
 }
 
 export default function ListingDetailScreen({
   visible,
   tradeId,
   onClose,
+  navigation
 }: ListingDetailScreenProps) {
   const [trade, setTrade] = useState<Trade | null>(null);
   const [loading, setLoading] = useState(true);
@@ -192,8 +194,22 @@ export default function ListingDetailScreen({
                 <TouchableOpacity style={styles.actionButton}>
                   <Text style={styles.actionButtonText}>Make an offer</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionButton, styles.contactButton]}>
-                  <Text style={[styles.actionButtonText, styles.contactButtonText]}>Contact Seller</Text>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.contactButton]}
+                  onPress={() => {
+                    onClose(); // close the listing modal
+
+                    // Navigate directly to a chat screen with seller
+                    navigation.navigate('ChatScreen', {
+                      chatId: `chat_with_${trade?.offerer_user_id}`, // temporary ID
+                      contactName: trade?.title || 'Seller',
+                      receiverId: trade?.offerer_user_id,
+                    });
+                  }}
+                >
+                  <Text style={[styles.actionButtonText, styles.contactButtonText]}>
+                    Contact Seller
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
