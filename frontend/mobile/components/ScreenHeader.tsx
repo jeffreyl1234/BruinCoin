@@ -50,8 +50,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   rightElement: {
-    width: 40,
-    alignItems: 'center',
+    minWidth: 40,
+    alignItems: 'flex-end',
     justifyContent: 'center',
   },
 });

@@ -210,9 +210,6 @@ export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSeeAllA
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>All Listings</Text>
-          <TouchableOpacity onPress={onSeeAllAll}>
-            <Text style={styles.seeAllText}>see all</Text>
-          </TouchableOpacity>
         </View>
         {loading ? (
           <View style={styles.loadingContainer}>

@@ -230,8 +230,14 @@ export default function App() {
         <SeeAllScreen
           visible={showSeeAll}
           type={seeAllType}
-          listings={listings}
           onClose={() => setShowSeeAll(false)}
+          onTradePress={handleTradePress}
+          currentScreen={currentScreen}
+          onHomePress={() => setCurrentScreen('home')}
+          onSearchPress={() => setCurrentScreen('search')}
+          onMessagesPress={() => setCurrentScreen('messages')}
+          onProfilePress={() => setCurrentScreen('profile')}
+          onAddPress={() => setShowCreateListing(true)}
         />
 
         {/* Listing Detail Screen */}

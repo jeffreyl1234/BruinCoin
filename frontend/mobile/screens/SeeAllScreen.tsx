@@ -4,14 +4,13 @@ import {
   Text,
   View,
   ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
   Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import TradeCard from '../components/TradeCard';
+import ScreenHeader from '../components/ScreenHeader';
 import BottomNavigation from '../components/BottomNavigation';
 import SlideModal from '../components/SlideModal';
 
@@ -113,16 +112,9 @@ export default function SeeAllScreen({
   return (
     <SlideModal visible={visible} onRequestClose={onClose}>
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          {/* Header with Back Button and Title */}
-          <View style={styles.header}>
-            <TouchableOpacity onPress={onClose} style={styles.backButton}>
-              <Ionicons name="chevron-back" size={24} color="#000" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>{sectionTitle}</Text>
-            <View style={styles.placeholder} />
-          </View>
-
+        <ScreenHeader title={sectionTitle} onBack={onClose} />
+        
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
           {/* Listings Grid */}
           {loading ? (
             <View style={styles.loadingContainer}>
@@ -167,28 +159,8 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: '#ffffff',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
-    textAlign: 'center',
-  },
-  placeholder: {
-    width: 40,
+  scrollContent: {
+    paddingTop: 16,
   },
   gridContainer: {
     flexDirection: 'row',

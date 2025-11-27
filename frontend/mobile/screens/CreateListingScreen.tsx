@@ -588,8 +588,9 @@ const styles = StyleSheet.create({
     color: '#1f2937',
   },
   modalSection: {
-    paddingHorizontal: 16,
-    paddingVertical: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    marginHorizontal: 8,
   },
   sectionLabel: {
     fontSize: 14,
