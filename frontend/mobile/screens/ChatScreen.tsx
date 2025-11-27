@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,6 +29,70 @@ interface ChatScreenProps {
 }
 
 export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenProps) {
+  const [displayName, setDisplayName] = useState(contactName);
+
+  useEffect(() => {
+    const fetchOtherUserName = async () => {
+      try {
+        // 1️⃣ Extract conversation ID (remove the "chat_with_" prefix)
+        const formattedChatId = chatId.replace('chat_with_', '');
+
+        // 2️⃣ Fetch the conversation row
+        const { data: convo, error: convoError } = await supabase
+          .from('conversations')
+          .select('user1_id, user2_id')
+          .eq('id', formattedChatId)
+          .single();
+
+        if (convoError || !convo) {
+          console.error('Error fetching conversation:', convoError?.message);
+          return;
+        }
+
+        // 3️⃣ Get current user ID
+        const { data: userData } = await supabase.auth.getUser();
+        const currentUserId = userData.user?.id;
+
+        // 4️⃣ Determine who the other user is
+        const otherUserId = convo.user1_id === currentUserId ? convo.user2_id : convo.user1_id;
+
+        // 5️⃣ Fetch the other user's username (works with either 'profiles' or 'users' table)
+        let username: string | null = null;
+
+        // Try profiles table first
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('user_name')
+          .eq('id', otherUserId)
+          .maybeSingle();
+
+        if (!profileError && profileData?.user_name) {
+          username = profileData.user_name;
+        } else {
+          // fallback: check 'users' table if you store names there
+          const { data: userRecord, error: userError } = await supabase
+            .from('users')
+            .select('user_name')
+            .eq('id', otherUserId)
+            .maybeSingle();
+
+          if (!userError && userRecord?.user_name) {
+            username = userRecord.user_name;
+          }
+        }
+
+        if (username) {
+          setDisplayName(username);
+        } else {
+          console.warn('Could not find username for other user.');
+        }
+      } catch (err) {
+        console.error('Error in fetchOtherUserName:', err);
+      }
+    };
+
+    if (!contactName) fetchOtherUserName();
+  }, [chatId, contactName]);
   const receiverId = chatId.replace('chat_with_', '');
 
   const SUGGESTED_TASKS = [
@@ -40,6 +105,7 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageText, setMessageText] = useState('');
   const [userId, setUserId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   // Fetch the current user's ID
   useEffect(() => {
@@ -54,23 +120,31 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
     if (!chatId || !userId) return;
 
     const fetchMessages = async () => {
-      const formattedChatId = chatId.replace('chat_with_', '');
-      const { data, error } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('conversation_id', formattedChatId)
-        .order('created_at', { ascending: true });
+      try {
+        setLoading(true); 
 
-      if (error) {
-        console.error('Error fetching messages:', error.message);
-      } else if (data) {
-        const loadedMessages: Message[] = data.map((msg) => ({
-          id: msg.id,
-          text: msg.text,
-          sender: msg.sender_id === userId ? 'me' : 'other',
-          timestamp: new Date(msg.created_at),
-        }));
-        setMessages(loadedMessages);
+        const formattedChatId = chatId.replace('chat_with_', '');
+        const { data, error } = await supabase
+          .from('messages')
+          .select('*')
+          .eq('conversation_id', formattedChatId)
+          .order('created_at', { ascending: true });
+
+        if (error) {
+          console.error('Error fetching messages:', error.message);
+        } else if (data) {
+          const loadedMessages: Message[] = data.map((msg) => ({
+            id: msg.id,
+            text: msg.text,
+            sender: msg.sender_id === userId ? 'me' : 'other',
+            timestamp: new Date(msg.created_at),
+          }));
+          setMessages(loadedMessages);
+        }
+      } catch (err) {
+        console.error('Error loading messages:', err);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -117,35 +191,11 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
   const handleSendMessage = async () => {
     if (!messageText.trim() || !userId || !receiverId) return;
 
-    // 🧠 Step 1: Check if a conversation already exists between these users
-    const { data: existingConversation, error: convoError } = await supabase
-      .from('conversations')
-      .select('id')
-      .or(`and(user1_id.eq.${userId},user2_id.eq.${receiverId}),and(user1_id.eq.${receiverId},user2_id.eq.${userId})`)
-      .limit(1)
-      .maybeSingle();
-
-    let conversationId = existingConversation?.id;
-
-    // 🧠 Step 2: If it doesn't exist, create it
+    // Step 1: Use the provided chatId (created earlier by handleContactSeller)
+    const conversationId = chatId;
     if (!conversationId) {
-      const { data: newConvo, error: insertError } = await supabase
-        .from('conversations')
-        .insert([
-          {
-            user1_id: userId,
-            user2_id: receiverId,
-          },
-        ])
-        .select()
-        .single();
-
-      if (insertError) {
-        console.error('Error creating conversation:', insertError.message);
-        return;
-      }
-
-      conversationId = newConvo.id;
+      console.error('No conversation ID found.');
+      return;
     }
 
     // 🧠 Step 3: Insert the message linked to that conversation
@@ -166,92 +216,113 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
     setMessageText('');
   };
 
+  if (loading) {
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#2563eb" />
+      </View>
+    </SafeAreaView>
+  );
+}
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
       <KeyboardAvoidingView
+        style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 59 : 0}
       >
-        <View style={styles.header}>
-          <TouchableOpacity onPress={onBack} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={26} color="#1C1C1E" />
-          </TouchableOpacity>
-          <Text style={styles.contactName}>{contactName}</Text>
-          <View style={styles.buyingTag}>
-            <Text style={styles.buyingText}>Buying</Text>
+        <View style={{ flex: 1 }}>
+          {/* HEADER */}
+          <View style={styles.header}>
+            <TouchableOpacity onPress={onBack} style={styles.backButton}>
+              <Ionicons name="chevron-back" size={26} color="#1C1C1E" />
+            </TouchableOpacity>
+            <Text style={styles.contactName}>{displayName || contactName}</Text>
+            <View style={styles.buyingTag}>
+              <Text style={styles.buyingText}>Buying</Text>
+            </View>
+            <TouchableOpacity style={styles.menuButton}>
+              <Ionicons name="ellipsis-horizontal" size={22} color="#6B7280" />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.menuButton}>
-            <Ionicons name="ellipsis-horizontal" size={22} color="#6B7280" />
-          </TouchableOpacity>
-        </View>
 
-        <ScrollView style={styles.messagesArea} showsVerticalScrollIndicator={false}>
-          {messages.length === 0 ? (
-            <View style={styles.initialState}>
-              <Text style={styles.initialText}>
-                This is the beginning of your conversation with {contactName}.
-              </Text>
+          {/* MESSAGES */}
+          <ScrollView
+            style={styles.messagesArea}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 12 }}
+          >
+            {messages.length === 0 ? (
+              <View style={styles.initialState}>
+                <Text style={styles.initialText}>
+                  This is the beginning of your conversation with {contactName}.
+                </Text>
 
-              <View style={styles.suggestedTasks}>
-                <Text style={styles.suggestedTitle}>Suggested tasks:</Text>
-                <View style={styles.tasksGrid}>
-                  {SUGGESTED_TASKS.map((task, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      style={styles.taskButton}
-                      onPress={() => setMessageText(task)}
-                    >
-                      <Text style={styles.taskText}>{task}</Text>
-                    </TouchableOpacity>
-                  ))}
+                <View style={styles.suggestedTasks}>
+                  <Text style={styles.suggestedTitle}>Suggested tasks:</Text>
+                  <View style={styles.tasksGrid}>
+                    {SUGGESTED_TASKS.map((task, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={styles.taskButton}
+                        onPress={() => setMessageText(task)}
+                      >
+                        <Text style={styles.taskText}>{task}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </View>
               </View>
-            </View>
-          ) : (
-            <View style={styles.messagesContainer}>
-              {messages.map((message) => (
-                <View
-                  key={message.id}
-                  style={[
-                    styles.messageBubble,
-                    message.sender === 'me' ? styles.myMessage : styles.otherMessage,
-                  ]}
-                >
-                  <Text
+            ) : (
+              <View style={styles.messagesContainer}>
+                {messages.map((message) => (
+                  <View
+                    key={message.id}
                     style={[
-                      styles.messageText,
-                      message.sender === 'me' ? styles.myMessageText : styles.otherMessageText,
+                      styles.messageBubble,
+                      message.sender === 'me' ? styles.myMessage : styles.otherMessage,
                     ]}
                   >
-                    {message.text}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          )}
-        </ScrollView>
+                    <Text
+                      style={[
+                        styles.messageText,
+                        message.sender === 'me'
+                          ? styles.myMessageText
+                          : styles.otherMessageText,
+                      ]}
+                    >
+                      {message.text}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </ScrollView>
 
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.messageInput}
-            placeholder="Placeholder"
-            placeholderTextColor="#9CA3AF"
-            value={messageText}
-            onChangeText={setMessageText}
-            multiline
-          />
-          <TouchableOpacity
-            style={styles.sendButton}
-            onPress={handleSendMessage}
-            disabled={!messageText.trim()}
-          >
-            <Ionicons
-              name="send"
-              size={22}
-              color={messageText.trim() ? '#007AFF' : '#9CA3AF'}
+          {/* INPUT BAR */}
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.messageInput}
+              placeholder="Message..."
+              placeholderTextColor="#9CA3AF"
+              value={messageText}
+              onChangeText={setMessageText}
+              multiline
             />
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.sendButton}
+              onPress={handleSendMessage}
+              disabled={!messageText.trim()}
+            >
+              <Ionicons
+                name="send"
+                size={22}
+                color={messageText.trim() ? '#007AFF' : '#9CA3AF'}
+              />
+            </TouchableOpacity>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -313,7 +384,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingTop: 10,
     borderTopWidth: 0.8,
     borderTopColor: '#E5E7EB',
     backgroundColor: '#F9FAFB',
@@ -330,4 +401,10 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   sendButton: { padding: 4 },
+  loadingContainer: {
+  flex: 1,
+  justifyContent: 'center',
+  alignItems: 'center',
+  backgroundColor: '#FFFFFF',
+},
 });

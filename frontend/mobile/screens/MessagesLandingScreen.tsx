@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +22,7 @@ export default function MessagesLandingScreen({ onChatPress }: MessagesLandingSc
   const [searchText, setSearchText] = useState('');
   const [conversations, setConversations] = useState<any[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   // ✅ Fetch user ID first
   useEffect(() => {
@@ -37,57 +39,76 @@ export default function MessagesLandingScreen({ onChatPress }: MessagesLandingSc
     if (!currentUserId) return;
 
     const fetchConversations = async () => {
-    const { data, error } = await supabase
-      .from('conversations')
-      .select(`
-        id,
-        user1_id,
-        user2_id,
-        created_at,
-        messages (
-          text,
-          created_at
-        )
-      `)
-      .or(`user1_id.eq.${currentUserId},user2_id.eq.${currentUserId}`)
-      .order('created_at', { ascending: false });
+      try {
+        setLoading(true); // ✅ Start spinner
 
-      if (error) {
-        console.error('Error loading conversations:', error.message);
-        return;
+        const { data, error } = await supabase
+          .from('conversations')
+          .select(`
+            id,
+            user1_id,
+            user2_id,
+            created_at,
+            messages (
+              text,
+              created_at
+            )
+          `)
+          .or(`user1_id.eq.${currentUserId},user2_id.eq.${currentUserId}`)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error loading conversations:', error.message);
+          return;
+        }
+
+        const mapped = await Promise.all(
+          (data || []).map(async (chat: any) => {
+            const otherUserId =
+              chat.user1_id === currentUserId ? chat.user2_id : chat.user1_id;
+
+            const { data: profileData } = await supabase
+              .from('users')
+              .select('user_name, profile_picture_url')
+              .eq('id', otherUserId)
+              .maybeSingle();
+
+            const contactName = profileData?.user_name || `User ${otherUserId.slice(0, 6)}`;
+            const avatarUrl = profileData?.profile_picture_url || null;
+
+            return {
+              id: chat.id,
+              contactName,
+              avatarUrl,
+              lastMessage: chat.messages?.[0]?.text ?? 'No messages yet',
+              unreadCount: 0,
+              hasAttachment: false,
+            };
+          })
+        );
+
+        setConversations(mapped);
+      } catch (err) {
+        console.error('Error fetching conversations:', err);
+        setConversations([]);
+      } finally {
+        setLoading(false); // ✅ Stop spinner
       }
-
-      const mapped = await Promise.all(
-        (data || []).map(async (chat: any) => {
-          const otherUserId =
-            chat.user1_id === currentUserId ? chat.user2_id : chat.user1_id;
-
-          // fetch that user's profile manually
-          const { data: profileData } = await supabase
-            .from('users')
-            .select('user_name, profile_picture_url')
-            .eq('id', otherUserId)
-            .maybeSingle();
-
-          const contactName = profileData?.user_name || `User ${otherUserId.slice(0, 6)}`;
-          const avatarUrl = profileData?.profile_picture_url || null;
-
-          return {
-            id: chat.id,
-            contactName,
-            avatarUrl,
-            lastMessage: chat.messages?.[0]?.text ?? 'No messages yet',
-            unreadCount: 0,
-            hasAttachment: false,
-          };
-        })
-      );
-
-      setConversations(mapped);
     };
 
     fetchConversations();
   }, [currentUserId]);
+
+  if (loading) {
+  return (
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <View style={styles.loadingContainer}>
+        <Text style={styles.headerTitle}>Chats</Text>
+        <ActivityIndicator size="large" color="#2563eb" />
+      </View>
+    </SafeAreaView>
+  );
+}
 
   return (
     <SafeAreaView style={[styles.container, { paddingTop: 4 }]} edges={['top', 'bottom']}>
@@ -143,7 +164,7 @@ export default function MessagesLandingScreen({ onChatPress }: MessagesLandingSc
                 )}
               </View>
               <View style={styles.chatInfo}>
-                <Text style={styles.chatName}>{chat.name}</Text>
+                <Text style={styles.chatName}>{chat.contactName}</Text>
                 <Text style={styles.chatPreview} numberOfLines={1}>
                   {chat.lastMessage}
                 </Text>
@@ -260,5 +281,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 6,
   },
+  loadingContainer: {
+  flex: 1,
+  justifyContent: 'center',
+  alignItems: 'center',
+  backgroundColor: '#FFFFFF',
+},
   unreadBadgeText: { fontSize: 11, fontWeight: '600', color: '#fff' },
 });

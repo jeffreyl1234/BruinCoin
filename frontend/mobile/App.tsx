@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useEffect, useState } from 'react';
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
@@ -17,6 +17,7 @@ import BottomNavigation from './components/BottomNavigation';
 import { supabase } from './lib/supabaseClient';
 import { NavigationContainer } from '@react-navigation/native';
 
+
 type Screen = 'home' | 'search' | 'profile' | 'messages';
 type AuthScreen = 'login' | 'register' | 'onboarding';
 
@@ -30,7 +31,7 @@ export default function App() {
   const [seeAllType, setSeeAllType] = useState<'new' | 'recommended'>('new');
   const [showChat, setShowChat] = useState(false);
   const [currentChatId, setCurrentChatId] = useState<string>('');
-  const [currentContactName, setCurrentContactName] = useState<string>('Josie Bruin');
+  const [currentContactName, setCurrentContactName] = useState<string>('');
   const [showListingDetail, setShowListingDetail] = useState(false);
   const [selectedTradeId, setSelectedTradeId] = useState<string | null>(null);
 

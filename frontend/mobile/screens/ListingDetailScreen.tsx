@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
+import { supabase } from '../lib/supabaseClient';
 
 interface Trade {
   id: string;
@@ -85,6 +86,57 @@ export default function ListingDetailScreen({
       return 'Looking for';
     }
     return '';
+  };
+
+    const handleContactSeller = async () => {
+    try {
+      // 🧠 Step 1: get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.error('No user logged in');
+        return;
+      }
+
+      const currentUserId = user.id;
+      const sellerId = trade?.offerer_user_id;
+      if (!sellerId || sellerId === currentUserId) return;
+
+      // 🧠 Step 2: check if conversation already exists
+      const { data: existingConversation, error: existingError } = await supabase
+        .from('conversations')
+        .select('id')
+        .or(`and(user1_id.eq.${currentUserId},user2_id.eq.${sellerId}),and(user1_id.eq.${sellerId},user2_id.eq.${currentUserId})`)
+        .limit(1)
+        .maybeSingle();
+
+      if (existingError) throw existingError;
+
+      let conversationId = existingConversation?.id;
+
+      // 🧠 Step 3: if none exists, create one
+      if (!conversationId) {
+        const { data: newConvo, error: insertError } = await supabase
+          .from('conversations')
+          .insert([
+            { user1_id: currentUserId, user2_id: sellerId }
+          ])
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+        conversationId = newConvo.id;
+      }
+
+      // 🧠 Step 4: close modal + navigate to chat
+      onClose();
+      navigation.navigate('ChatScreen', {
+        chatId: conversationId,
+        contactName: trade?.title || 'Seller',
+        receiverId: sellerId,
+      });
+    } catch (err: any) {
+      console.error('Error creating or fetching conversation:', err.message);
+    }
   };
 
   return (
@@ -196,16 +248,7 @@ export default function ListingDetailScreen({
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.actionButton, styles.contactButton]}
-                  onPress={() => {
-                    onClose(); // close the listing modal
-
-                    // Navigate directly to a chat screen with seller
-                    navigation.navigate('ChatScreen', {
-                      chatId: `chat_with_${trade?.offerer_user_id}`, // temporary ID
-                      contactName: trade?.title || 'Seller',
-                      receiverId: trade?.offerer_user_id,
-                    });
-                  }}
+                  onPress={handleContactSeller}
                 >
                   <Text style={[styles.actionButtonText, styles.contactButtonText]}>
                     Contact Seller
