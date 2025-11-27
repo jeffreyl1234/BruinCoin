@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useEffect, useState } from 'react';
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
@@ -15,6 +15,8 @@ import SeeAllScreen from './screens/SeeAllScreen';
 import ListingDetailScreen from './screens/ListingDetailScreen';
 import BottomNavigation from './components/BottomNavigation';
 import { supabase } from './lib/supabaseClient';
+import { NavigationContainer } from '@react-navigation/native';
+
 
 type Screen = 'home' | 'search' | 'profile' | 'messages';
 type AuthScreen = 'login' | 'register' | 'onboarding';
@@ -29,7 +31,7 @@ export default function App() {
   const [seeAllType, setSeeAllType] = useState<'new' | 'recommended' | 'all'>('new');
   const [showChat, setShowChat] = useState(false);
   const [currentChatId, setCurrentChatId] = useState<string>('');
-  const [currentContactName, setCurrentContactName] = useState<string>('Josie Bruin');
+  const [currentContactName, setCurrentContactName] = useState<string>('');
   const [showListingDetail, setShowListingDetail] = useState(false);
   const [selectedTradeId, setSelectedTradeId] = useState<string | null>(null);
   const [previousScreen, setPreviousScreen] = useState<{ screen: Screen; showSeeAll?: boolean; seeAllType?: 'new' | 'recommended' | 'all' } | null>(null);
@@ -174,77 +176,87 @@ export default function App() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar style="auto" />
-      
-      {currentScreen === 'home' && (
-        <HomeScreen 
-          onSeeAllNew={() => handleSeeAll('new')}
-          onSeeAllRecommended={() => handleSeeAll('recommended')}
-          onSeeAllAll={() => handleSeeAll('all')}
+    <NavigationContainer>
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <StatusBar style="auto" />
+        
+        {currentScreen === 'home' && (
+          <HomeScreen 
+            onSeeAllNew={() => handleSeeAll('new')}
+            onSeeAllRecommended={() => handleSeeAll('recommended')}
+            onSearchPress={() => setCurrentScreen('search')}
+            onTradePress={handleTradePress}
+          />
+        )}
+        
+        {currentScreen === 'search' && (
+          <SearchScreen onTradePress={handleTradePress} />
+        )}
+        
+        {currentScreen === 'profile' && (
+          <ProfileScreen
+            onBack={() => setCurrentScreen('home')}
+            onLogout={() => setIsLoggedIn(false)}
+          />
+        )}
+        
+        {currentScreen === 'messages' && !showChat && (
+          <MessagesLandingScreen onChatPress={handleChatPress} />
+        )}
+        
+        {showChat && (
+          <ChatScreen
+            chatId={currentChatId}
+            contactName={currentContactName}
+            onBack={handleChatBack}
+          />
+        )}
+
+        <BottomNavigation 
+          currentScreen={currentScreen}
+          onHomePress={() => setCurrentScreen('home')}
           onSearchPress={() => setCurrentScreen('search')}
-          onTradePress={handleTradePress}
+          onMessagesPress={() => setCurrentScreen('messages')}
+          onProfilePress={() => setCurrentScreen('profile')}
+          onAddPress={() => setShowCreateListing(true)} 
         />
-      )}
-      
-      {currentScreen === 'search' && (
-        <SearchScreen onTradePress={handleTradePress} />
-      )}
-      
-      {currentScreen === 'profile' && (
-        <ProfileScreen
-          onBack={() => setCurrentScreen('home')}
-          onLogout={() => setIsLoggedIn(false)}
+
+        {/* Create Listing Modal */}
+        {showCreateListing && (
+          <CreateListingScreen onClose={() => setShowCreateListing(false)} />
+        )}
+
+        {/* See All Screen */}
+        <SeeAllScreen
+          visible={showSeeAll}
+          type={seeAllType}
+          listings={listings}
+          onClose={() => setShowSeeAll(false)}
         />
-      )}
-      
-      {currentScreen === 'messages' && !showChat && (
-        <MessagesLandingScreen onChatPress={handleChatPress} />
-      )}
-      
-      {showChat && (
-        <ChatScreen
-          chatId={currentChatId}
-          contactName={currentContactName}
-          onBack={handleChatBack}
+
+        {/* Listing Detail Screen */}
+        <ListingDetailScreen
+          visible={showListingDetail}
+          tradeId={selectedTradeId}
+          onClose={handleListingDetailClose}
+          navigation={{
+            navigate: (screen: string, params?: any) => {
+              if (screen === 'ChatScreen') {
+                // ✅ Switch to Messages tab
+                setCurrentScreen('messages');
+
+                // ✅ Ensure chat shows after switching
+                setTimeout(() => {
+                  setShowChat(true);
+                  if (params?.chatId) setCurrentChatId(params.chatId);
+                  if (params?.contactName) setCurrentContactName(params.contactName);
+                }, 150);
+              }
+            },
+          }}
         />
-      )}
-
-      <BottomNavigation 
-        currentScreen={currentScreen}
-        onHomePress={() => setCurrentScreen('home')}
-        onSearchPress={() => setCurrentScreen('search')}
-        onMessagesPress={() => setCurrentScreen('messages')}
-        onProfilePress={() => setCurrentScreen('profile')}
-        onAddPress={() => setShowCreateListing(true)} 
-      />
-
-      {/* Create Listing Modal */}
-      {showCreateListing && (
-        <CreateListingScreen onClose={() => setShowCreateListing(false)} />
-      )}
-
-      {/* See All Screen */}
-      <SeeAllScreen
-        visible={showSeeAll}
-        type={seeAllType}
-        onClose={() => setShowSeeAll(false)}
-        onTradePress={handleTradePress}
-        currentScreen={currentScreen}
-        onHomePress={() => setCurrentScreen('home')}
-        onSearchPress={() => setCurrentScreen('search')}
-        onMessagesPress={() => setCurrentScreen('messages')}
-        onProfilePress={() => setCurrentScreen('profile')}
-        onAddPress={() => setShowCreateListing(true)}
-      />
-
-      {/* Listing Detail Screen */}
-      <ListingDetailScreen
-        visible={showListingDetail}
-        tradeId={selectedTradeId}
-        onClose={handleListingDetailClose}
-      />
-    </SafeAreaView>
+      </SafeAreaView>
+    </NavigationContainer>
   );
 }
 
