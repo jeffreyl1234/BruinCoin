@@ -208,15 +208,16 @@ export default function ListingDetailScreen({
 
   return (
     <Modal visible={visible} animationType="none" presentationStyle="overFullScreen">
-      <SafeAreaView style={styles.container} edges={['top']}>
-        {/* Header with back button */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={onClose} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={28} color="#666" />
-          </TouchableOpacity>
-        </View>
+      <View style={styles.container}>
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
+          {/* Header with back button */}
+          <View style={styles.header}>
+            <TouchableOpacity onPress={onClose} style={styles.backButton}>
+              <Ionicons name="chevron-back" size={28} color="#666" />
+            </TouchableOpacity>
+          </View>
 
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           {loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#2563eb" />
@@ -342,24 +343,25 @@ export default function ListingDetailScreen({
               <Text style={styles.errorText}>Failed to load listing</Text>
             </View>
           )}
-        </ScrollView>
+          </ScrollView>
 
-        {/* Rating Modal */}
-        {sellerInfo && (
-          <RateUserScreen
-            visible={showRatingModal}
-            ratedUserId={sellerInfo.id}
-            ratedUserName={sellerInfo.name}
-            onClose={() => setShowRatingModal(false)}
-            onRated={() => {
-              // Refresh seller profile to show updated rating
-              if (trade?.offerer_user_id) {
-                fetchSellerProfile(trade.offerer_user_id);
-              }
-            }}
-          />
-        )}
-      </SafeAreaView>
+          {/* Rating Modal */}
+          {sellerInfo && (
+            <RateUserScreen
+              visible={showRatingModal}
+              ratedUserId={sellerInfo.id}
+              ratedUserName={sellerInfo.name}
+              onClose={() => setShowRatingModal(false)}
+              onRated={() => {
+                // Refresh seller profile to show updated rating
+                if (trade?.offerer_user_id) {
+                  fetchSellerProfile(trade.offerer_user_id);
+                }
+              }}
+            />
+          )}
+        </SafeAreaView>
+      </View>
     </Modal>
   );
 }
@@ -369,7 +371,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f0f0f0',
   },
-
+  safeArea: {
+    flex: 1,
+  },
   header: {
     paddingHorizontal: 16,
     paddingVertical: 12,
