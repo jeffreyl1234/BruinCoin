@@ -13,9 +13,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import Constants from 'expo-constants';
 import { supabase } from '../lib/supabaseClient';
-import ScreenHeader from '../components/ScreenHeader';
+import Constants from 'expo-constants';
+import RateUserScreen from './RateUserScreen';
 
 interface Trade {
   id: string;
@@ -56,12 +56,9 @@ export default function ListingDetailScreen({
 }: ListingDetailScreenProps) {
   const [trade, setTrade] = useState<Trade | null>(null);
   const [loading, setLoading] = useState(true);
-  const [reviewCount, setReviewCount] = useState(0);
-  const [averageRating, setAverageRating] = useState(0);
-  const [showReviewModal, setShowReviewModal] = useState(false);
-  const [reviewText, setReviewText] = useState('');
-  const [userRating, setUserRating] = useState(0);
-  const [reviews, setReviews] = useState<Array<{id: string, rating: number, text: string, userName: string, date: string}>>([]);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [sellerInfo, setSellerInfo] = useState<{ id: string; name: string } | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [sellerProfile, setSellerProfile] = useState<SellerProfile | null>(null);
 
   const apiUrl = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:3001';
@@ -69,11 +66,25 @@ export default function ListingDetailScreen({
   useEffect(() => {
     if (visible && tradeId) {
       fetchTrade();
+      fetchCurrentUser();
     } else {
       setTrade(null);
       setLoading(true);
+      setShowRatingModal(false);
+      setSellerInfo(null);
     }
   }, [visible, tradeId]);
+
+  const fetchCurrentUser = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentUserId(user.id);
+      }
+    } catch (error) {
+      console.error('Failed to get current user:', error);
+    }
+  };
 
   const fetchTrade = async () => {
     if (!tradeId) return;
@@ -89,7 +100,26 @@ export default function ListingDetailScreen({
       const data = await response.json();
       if (data.trade) {
         setTrade(data.trade);
-        await fetchSellerProfile(data.trade.offerer_user_id);
+        
+        // Fetch seller info for rating and display
+        if (data.trade.offerer_user_id) {
+          fetchSellerProfile(data.trade.offerer_user_id);
+          try {
+            const sellerResponse = await fetch(`${apiUrl}/api/users/${data.trade.offerer_user_id}`);
+            if (sellerResponse.ok) {
+              const sellerData = await sellerResponse.json();
+              if (sellerData.user) {
+                const sellerName = sellerData.user.user_name || sellerData.user.email?.split('@')[0] || 'Seller';
+                setSellerInfo({
+                  id: data.trade.offerer_user_id,
+                  name: sellerName,
+                });
+              }
+            }
+          } catch (error) {
+            console.error('Failed to fetch seller info:', error);
+          }
+        }
       }
     } catch (error) {
       console.error('Failed to fetch trade:', error);
@@ -175,34 +205,6 @@ export default function ListingDetailScreen({
     }
   };
 
-  const handleSubmitReview = () => {
-    if (userRating === 0) {
-      Alert.alert('Error', 'Please select a rating');
-      return;
-    }
-    
-    const newReview = {
-      id: Date.now().toString(),
-      rating: userRating,
-      text: reviewText,
-      userName: 'Anonymous User',
-      date: new Date().toLocaleDateString()
-    };
-    
-    const newReviews = [...reviews, newReview];
-    const newTotal = (averageRating * reviewCount) + userRating;
-    const newCount = reviewCount + 1;
-    const newAverage = newTotal / newCount;
-    
-    setReviews(newReviews);
-    setAverageRating(newAverage);
-    setReviewCount(newCount);
-    setShowReviewModal(false);
-    setReviewText('');
-    setUserRating(0);
-    
-    Alert.alert('Success', 'Thank you for your review!');
-  };
 
   return (
     <Modal visible={visible} animationType="none" presentationStyle="overFullScreen">
@@ -220,7 +222,7 @@ export default function ListingDetailScreen({
               <ActivityIndicator size="large" color="#2563eb" />
             </View>
           ) : trade ? (
-            <>
+            <View>
               {/* Images Section */}
               <View style={styles.imagesContainer}>
                 {trade.image_urls && trade.image_urls.length > 0 ? (
@@ -242,22 +244,9 @@ export default function ListingDetailScreen({
 
               {/* Content Card */}
               <View style={styles.contentCard}>
-                {/* Title and Rating */}
+                {/* Title and Price */}
                 <View style={styles.titleSection}>
                   <Text style={styles.titleText}>{trade.title || 'Untitled'}</Text>
-                  <TouchableOpacity style={styles.ratingContainer} onPress={() => setShowReviewModal(true)}>
-                    <View style={styles.starsContainer}>
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <Ionicons 
-                          key={star} 
-                          name="star" 
-                          size={16} 
-                          color={star <= averageRating ? "#FFD700" : "#e5e5e5"} 
-                        />
-                      ))}
-                    </View>
-                    <Text style={styles.ratingText}>{averageRating.toFixed(1)} ({reviewCount} Reviews)</Text>
-                  </TouchableOpacity>
                   <View style={styles.priceContainer}>
                     <View style={styles.priceDot} />
                     <Text style={styles.priceText}>{formatPrice()}</Text>
@@ -319,44 +308,35 @@ export default function ListingDetailScreen({
                             </View>
                           ))
                         ) : (
-                          <Text style={styles.noInterestsText}>No interests listed</Text>
+                          <Text style={styles.interestText}>No interests listed</Text>
                         )}
                       </View>
                     </View>
                   </View>
                 </View>
 
-                {/* Reviews Section */}
-                {reviews.length > 0 && (
-                  <View style={styles.reviewsSection}>
-                    <Text style={styles.sectionTitle}>Reviews</Text>
-                    {reviews.map((review) => (
-                      <View key={review.id} style={styles.reviewItem}>
-                        <View style={styles.reviewHeader}>
-                          <Text style={styles.reviewUserName}>{review.userName}</Text>
-                          <View style={styles.reviewStars}>
-                            {[1, 2, 3, 4, 5].map((star) => (
-                              <Ionicons 
-                                key={star} 
-                                name="star" 
-                                size={12} 
-                                color={star <= review.rating ? "#FFD700" : "#e5e5e5"} 
-                              />
-                            ))}
-                          </View>
-                          <Text style={styles.reviewDate}>{review.date}</Text>
-                        </View>
-                        {review.text ? (
-                          <Text style={styles.reviewText}>{review.text}</Text>
-                        ) : null}
-                      </View>
-                    ))}
-                  </View>
+                {/* Rate Seller Button - Only show if viewing someone else's listing */}
+                {sellerInfo && currentUserId && sellerInfo.id !== currentUserId && (
+                  <TouchableOpacity
+                    style={styles.rateButton}
+                    onPress={() => setShowRatingModal(true)}
+                  >
+                    <Ionicons name="star-outline" size={20} color="#fbbf24" />
+                    <Text style={[styles.rateButtonText, { marginLeft: 8 }]}>Rate Seller</Text>
+                  </TouchableOpacity>
                 )}
 
-
+                {/* Action Buttons */}
+                <View style={styles.bottomActions}>
+                  <TouchableOpacity style={styles.contactButton} onPress={handleContactSeller}>
+                    <Text style={styles.contactButtonText}>Contact Seller</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.offerButton}>
+                    <Text style={styles.offerButtonText}>Make an Offer</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </>
+            </View>
           ) : (
             <View style={styles.errorContainer}>
               <Text style={styles.errorText}>Failed to load listing</Text>
@@ -364,59 +344,22 @@ export default function ListingDetailScreen({
           )}
         </ScrollView>
 
-        {/* Bottom Action Buttons */}
-        {trade && (
-          <View style={styles.bottomActions}>
-            <TouchableOpacity style={styles.contactButton}>
-              <Text style={styles.contactButtonText}>Contact Seller</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.offerButton} onPress={handleContactSeller}>
-              <Text style={styles.offerButtonText}>Make an offer</Text>
-            </TouchableOpacity>
-          </View>
+        {/* Rating Modal */}
+        {sellerInfo && (
+          <RateUserScreen
+            visible={showRatingModal}
+            ratedUserId={sellerInfo.id}
+            ratedUserName={sellerInfo.name}
+            onClose={() => setShowRatingModal(false)}
+            onRated={() => {
+              // Refresh seller profile to show updated rating
+              if (trade?.offerer_user_id) {
+                fetchSellerProfile(trade.offerer_user_id);
+              }
+            }}
+          />
         )}
       </SafeAreaView>
-
-      <Modal visible={showReviewModal} animationType="slide" presentationStyle="pageSheet">
-        <SafeAreaView style={styles.reviewModal}>
-          <ScreenHeader 
-            title="Write a Review" 
-            onBack={() => setShowReviewModal(false)}
-            rightElement={
-              <TouchableOpacity onPress={handleSubmitReview}>
-                <Text style={styles.submitText} numberOfLines={1}>Submit</Text>
-              </TouchableOpacity>
-            }
-          />
-          
-          <View style={styles.reviewContent}>
-            <Text style={styles.rateLabel}>Rate this listing:</Text>
-            <View style={styles.starRating}>
-              {[1, 2, 3, 4, 5].map((star) => (
-                <TouchableOpacity key={star} onPress={() => setUserRating(star)}>
-                  <Ionicons 
-                    name="star" 
-                    size={32} 
-                    color={star <= userRating ? "#FFD700" : "#e5e5e5"} 
-                    style={styles.ratingStar}
-                  />
-                </TouchableOpacity>
-              ))}
-            </View>
-            
-            <Text style={styles.reviewLabel}>Your review:</Text>
-            <TextInput
-              style={styles.reviewInput}
-              placeholder="Share your experience with this listing..."
-              multiline
-              numberOfLines={4}
-              value={reviewText}
-              onChangeText={setReviewText}
-              textAlignVertical="top"
-            />
-          </View>
-        </SafeAreaView>
-      </Modal>
     </Modal>
   );
 }
@@ -480,18 +423,21 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingRight: 80,
   },
-  ratingContainer: {
+  rateButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    justifyContent: 'center',
+    backgroundColor: '#fef3c7',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 20,
   },
-  starsContainer: {
-    flexDirection: 'row',
-    marginRight: 8,
-  },
-  ratingText: {
+  rateButtonText: {
     fontSize: 16,
-    color: '#666666',
+    fontWeight: '600',
+    color: '#92400e',
   },
   priceContainer: {
     flexDirection: 'row',
@@ -654,85 +600,6 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 16,
     color: '#ef4444',
-  },
-  reviewModal: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-  },
-
-  submitText: {
-    fontSize: 16,
-    color: '#2563eb',
-    fontWeight: '600',
-  },
-  reviewContent: {
-    padding: 20,
-  },
-  rateLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000000',
-    marginBottom: 12,
-  },
-  starRating: {
-    flexDirection: 'row',
-    marginBottom: 24,
-  },
-  ratingStar: {
-    marginRight: 8,
-  },
-  reviewLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000000',
-    marginBottom: 12,
-  },
-  reviewInput: {
-    borderWidth: 1,
-    borderColor: '#e5e5e5',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    minHeight: 120,
-    backgroundColor: '#f8f8f8',
-  },
-  reviewsSection: {
-    marginBottom: 32,
-  },
-  reviewItem: {
-    backgroundColor: '#f8f8f8',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  reviewHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  reviewUserName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#000000',
-    marginRight: 12,
-  },
-  reviewStars: {
-    flexDirection: 'row',
-    marginRight: 12,
-  },
-  reviewDate: {
-    fontSize: 12,
-    color: '#666666',
-  },
-  reviewText: {
-    fontSize: 14,
-    color: '#333333',
-    lineHeight: 20,
-  },
-  noInterestsText: {
-    fontSize: 12,
-    color: '#999999',
-    fontStyle: 'italic',
   },
 });
 
