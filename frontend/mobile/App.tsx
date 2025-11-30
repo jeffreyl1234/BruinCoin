@@ -3,7 +3,6 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useEffect, useState } from 'react';
 import LoginScreen from './screens/LoginScreen';
-import RegisterScreen from './screens/RegisterScreen';
 import OnboardingFlow from './screens/OnboardingFlow';
 import HomeScreen from './screens/HomeScreen';
 import SearchScreen from './screens/SearchScreen';
@@ -19,7 +18,7 @@ import { NavigationContainer } from '@react-navigation/native';
 
 
 type Screen = 'home' | 'search' | 'profile' | 'messages';
-type AuthScreen = 'login' | 'register' | 'onboarding';
+type AuthScreen = 'login' | 'onboarding';
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -144,7 +143,7 @@ export default function App() {
               setAuthScreen('login');
             }}
           />
-        ) : authScreen === 'login' ? (
+        ) : (
           <LoginScreen 
             onLogin={({ requiresOnboarding }) => {
               if (requiresOnboarding) {
@@ -155,20 +154,7 @@ export default function App() {
                 setAuthScreen('login');
               }
             }} 
-            onSwitchToRegister={() => setAuthScreen('register')}
-          />
-        ) : (
-          <RegisterScreen 
-            onRegister={({ requiresOnboarding }) => {
-              if (requiresOnboarding) {
-                setIsLoggedIn(false);
-                setAuthScreen('onboarding');
-              } else {
-                setIsLoggedIn(true);
-                setAuthScreen('login');
-              }
-            }} 
-            onSwitchToLogin={() => setAuthScreen('login')}
+            onSwitchToRegister={() => setAuthScreen('onboarding')}
           />
         )}
       </SafeAreaView>
