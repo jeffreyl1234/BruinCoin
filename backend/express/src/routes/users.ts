@@ -52,8 +52,33 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'email (string) is required' });
   }
 
-  const insertData: Record<string, unknown> = { id, email };
-  if (typeof user_name === 'string') insertData.user_name = user_name;
+  const trimmedEmail = email.trim();
+  const normalizedUsername =
+    typeof user_name === 'string' && user_name.trim().length > 0 ? user_name.trim() : undefined;
+
+  if (!trimmedEmail) {
+    return res.status(400).json({ error: 'email (string) is required' });
+  }
+
+  if (normalizedUsername) {
+    const { data: usernameMatches, error: usernameCheckError } = await supabase
+      .from('users')
+      .select('id')
+      .ilike('user_name', normalizedUsername)
+      .neq('id', id)
+      .limit(1);
+
+    if (usernameCheckError) {
+      return res.status(500).json({ error: usernameCheckError.message });
+    }
+
+    if (Array.isArray(usernameMatches) && usernameMatches.length > 0) {
+      return res.status(409).json({ error: 'Username already taken' });
+    }
+  }
+
+  const insertData: Record<string, unknown> = { id, email: trimmedEmail };
+  if (normalizedUsername) insertData.user_name = normalizedUsername;
   if (typeof bio === 'string') insertData.bio = bio;
   if (typeof profile_picture_url === 'string') insertData.profile_picture_url = profile_picture_url;
 
@@ -111,8 +136,29 @@ router.patch('/:id', async (req, res) => {
   const { user_name, email, bio, profile_picture_url, trade_preferences, category_preferences, interests } = req.body ?? {};
 
   const update: Record<string, unknown> = {};
-  if (typeof user_name === 'string') update.user_name = user_name;
-  if (typeof email === 'string') update.email = email;
+  const normalizedUsername =
+    typeof user_name === 'string' && user_name.trim().length > 0 ? user_name.trim() : undefined;
+  const trimmedEmail = typeof email === 'string' ? email.trim() : undefined;
+
+  if (normalizedUsername) {
+    const { data: usernameMatches, error: usernameCheckError } = await supabase
+      .from('users')
+      .select('id')
+      .ilike('user_name', normalizedUsername)
+      .neq('id', id)
+      .limit(1);
+
+    if (usernameCheckError) {
+      return res.status(500).json({ error: usernameCheckError.message });
+    }
+
+    if (Array.isArray(usernameMatches) && usernameMatches.length > 0) {
+      return res.status(409).json({ error: 'Username already taken' });
+    }
+  }
+
+  if (normalizedUsername !== undefined) update.user_name = normalizedUsername;
+  if (trimmedEmail) update.email = trimmedEmail;
   if (typeof bio === 'string') update.bio = bio;
   if (typeof profile_picture_url === 'string') update.profile_picture_url = profile_picture_url;
 
