@@ -65,10 +65,13 @@ export default function ListingDetailScreen({
 
   useEffect(() => {
     if (visible && tradeId) {
+      // Reset seller profile when switching to a new listing
+      setSellerProfile(null);
       fetchTrade();
       fetchCurrentUser();
     } else {
       setTrade(null);
+      setSellerProfile(null);
       setLoading(true);
       setShowRatingModal(false);
       setSellerInfo(null);
@@ -103,7 +106,7 @@ export default function ListingDetailScreen({
         
         // Fetch seller info for rating and display
         if (data.trade.offerer_user_id) {
-          fetchSellerProfile(data.trade.offerer_user_id);
+          await fetchSellerProfile(data.trade.offerer_user_id);
           try {
             const sellerResponse = await fetch(`${apiUrl}/api/users/${data.trade.offerer_user_id}`);
             if (sellerResponse.ok) {
@@ -119,6 +122,8 @@ export default function ListingDetailScreen({
           } catch (error) {
             console.error('Failed to fetch seller info:', error);
           }
+        } else {
+          console.error('Trade missing offerer_user_id:', data.trade);
         }
       }
     } catch (error) {
@@ -129,13 +134,21 @@ export default function ListingDetailScreen({
   };
 
   const fetchSellerProfile = async (userId: string) => {
+    if (!userId) {
+      console.error('fetchSellerProfile called with empty userId');
+      return;
+    }
     try {
       const response = await fetch(`${apiUrl}/api/users/${userId}`);
       if (response.ok) {
         const data = await response.json();
         if (data.user) {
           setSellerProfile(data.user);
+        } else {
+          console.error('No user data in response:', data);
         }
+      } else {
+        console.error('Failed to fetch seller profile:', response.status, response.statusText);
       }
     } catch (error) {
       console.error('Failed to fetch seller profile:', error);
@@ -237,8 +250,12 @@ export default function ListingDetailScreen({
                   ))
                 ) : (
                   <>
-                    <View style={styles.imagePlaceholder} />
-                    <View style={[styles.imagePlaceholder, { marginLeft: 12 }]} />
+                    <View style={styles.imagePlaceholder}>
+                      <Ionicons name="image-outline" size={48} color="#9ca3af" />
+                    </View>
+                    <View style={[styles.imagePlaceholder, { marginLeft: 12 }]}>
+                      <Ionicons name="image-outline" size={48} color="#9ca3af" />
+                    </View>
                   </>
                 )}
               </View>
@@ -277,7 +294,15 @@ export default function ListingDetailScreen({
                 {/* Seller Section */}
                 <View style={styles.sellerSection}>
                   <Text style={styles.sectionTitle}>Seller</Text>
-                  <View style={styles.sellerInfo}>
+                  <TouchableOpacity 
+                    style={styles.sellerInfo}
+                    onPress={() => {
+                      if (trade?.offerer_user_id && navigation) {
+                        navigation.navigate('ProfileScreen', { userId: trade.offerer_user_id });
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
                     <View style={styles.sellerAvatar}>
                       {sellerProfile?.profile_picture_url ? (
                         <Image 
@@ -313,7 +338,7 @@ export default function ListingDetailScreen({
                         )}
                       </View>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 </View>
 
                 {/* Rate Seller Button - Only show if viewing someone else's listing */}
@@ -408,6 +433,8 @@ const styles = StyleSheet.create({
     height: 280,
     backgroundColor: '#e5e5e5',
     borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   contentCard: {
     backgroundColor: '#ffffff',

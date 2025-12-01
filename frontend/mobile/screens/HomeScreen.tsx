@@ -140,7 +140,9 @@ export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSeeAllA
                       resizeMode="cover"
                     />
                   ) : (
-                    <View style={styles.imagePlaceholder} />
+                    <View style={styles.imagePlaceholder}>
+                      <Ionicons name="image-outline" size={40} color="#9ca3af" />
+                    </View>
                   )}
                   <Text style={styles.listingTitle} numberOfLines={2}>{trade.title || 'Untitled'}</Text>
                   <View style={styles.priceContainer}>
@@ -190,7 +192,9 @@ export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSeeAllA
                       resizeMode="cover"
                     />
                   ) : (
-                    <View style={styles.imagePlaceholder} />
+                    <View style={styles.imagePlaceholder}>
+                      <Ionicons name="image-outline" size={40} color="#9ca3af" />
+                    </View>
                   )}
                   <Text style={styles.listingTitle} numberOfLines={2}>{trade.title || 'Untitled'}</Text>
                   <View style={styles.priceContainer}>
@@ -294,6 +298,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#f3f4f6',
     borderRadius: 12,
     marginBottom: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   listingTitle: {
     fontSize: 14,

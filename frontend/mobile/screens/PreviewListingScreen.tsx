@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '../lib/supabaseClient';
+import Constants from 'expo-constants';
 
 export interface ListingData {
   title: string;
@@ -31,6 +33,12 @@ interface PreviewListingScreenProps {
   isPublishing?: boolean;
 }
 
+interface UserProfile {
+  user_name: string | null;
+  profile_picture_url: string | null;
+  rating: number | null;
+}
+
 export default function PreviewListingScreen({
   visible,
   listingData,
@@ -38,6 +46,45 @@ export default function PreviewListingScreen({
   onPublish,
   isPublishing = false,
 }: PreviewListingScreenProps) {
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
+  const apiUrl = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:3001';
+
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (!visible) return;
+      
+      setLoadingProfile(true);
+      try {
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError || !authUser) {
+          console.error('Failed to get current user:', authError);
+          setLoadingProfile(false);
+          return;
+        }
+
+        const response = await fetch(`${apiUrl}/api/users/${authUser.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.user) {
+            setUserProfile({
+              user_name: data.user.user_name,
+              profile_picture_url: data.user.profile_picture_url,
+              rating: data.user.rating,
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
+      } finally {
+        setLoadingProfile(false);
+      }
+    };
+
+    fetchUserProfile();
+  }, [visible, apiUrl]);
+
   const formatDescription = (description: string) => {
     if (!description) return [];
     // Split by lines or create bullet points from text
@@ -95,8 +142,12 @@ export default function PreviewListingScreen({
                 ))
               ) : (
                 <>
-                  <View style={styles.imagePlaceholder} />
-                  <View style={[styles.imagePlaceholder, { marginLeft: 12 }]} />
+                  <View style={styles.imagePlaceholder}>
+                    <Ionicons name="image-outline" size={48} color="#9ca3af" />
+                  </View>
+                  <View style={[styles.imagePlaceholder, { marginLeft: 12 }]}>
+                    <Ionicons name="image-outline" size={48} color="#9ca3af" />
+                  </View>
                 </>
               )}
             </View>
@@ -132,29 +183,38 @@ export default function PreviewListingScreen({
               )}
             </View>
 
-            {/* Action Buttons */}
-              <View style={styles.actionButtons}>
-                <TouchableOpacity style={styles.actionButton}>
-                  <Text style={styles.actionButtonText}>Make an offer</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionButton, { marginLeft: 12 }]}>
-                  <Text style={styles.actionButtonText}>Contact Seller</Text>
-                </TouchableOpacity>
-              </View>
-
             {/* Seller Section */}
             <View style={styles.sellerSection}>
               <Text style={styles.sectionTitle}>Seller</Text>
               <View style={styles.sellerInfo}>
-                <View style={styles.sellerAvatar} />
+                <View style={styles.sellerAvatar}>
+                  {userProfile?.profile_picture_url ? (
+                    <Image 
+                      source={{ uri: userProfile.profile_picture_url }} 
+                      style={styles.sellerAvatarImage}
+                    />
+                  ) : (
+                    <Ionicons name="person" size={24} color="#9ca3af" />
+                  )}
+                </View>
                 <View style={styles.sellerDetails}>
-                  <Text style={styles.sellerName}>First Last</Text>
+                  <Text style={styles.sellerName}>
+                    {loadingProfile ? 'Loading...' : (userProfile?.user_name || 'Anonymous Seller')}
+                  </Text>
                   <View style={styles.ratingContainer}>
-                    {[...Array(5)].map((_, i) => (
-                      <View key={i} style={i > 0 ? { marginLeft: 2 } : undefined}>
-                        <Ionicons name="star" size={16} color="#3b82f6" />
-                      </View>
-                    ))}
+                    {userProfile?.rating !== null && userProfile?.rating !== undefined ? (
+                      <>
+                        <Text style={styles.ratingText}>
+                          {userProfile.rating.toFixed(1)}
+                        </Text>
+                        <Ionicons name="star" size={14} color="#FFD700" />
+                      </>
+                    ) : (
+                      <>
+                        <Text style={styles.ratingText}>0.0</Text>
+                        <Ionicons name="star" size={14} color="#FFD700" />
+                      </>
+                    )}
                   </View>
                 </View>
               </View>
@@ -265,6 +325,8 @@ const styles = StyleSheet.create({
     height: 200,
     backgroundColor: '#f3f4f6',
     borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   tagsSection: {
   marginBottom: 20,
@@ -319,23 +381,6 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
     fontStyle: 'italic',
   },
-  actionButtons: {
-    flexDirection: 'row',
-    marginBottom: 20,
-  },
-  actionButton: {
-    flex: 1,
-    backgroundColor: '#f3f4f6',
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1f2937',
-  },
   sellerSection: {
     marginBottom: 20,
   },
@@ -349,6 +394,14 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     backgroundColor: '#f3f4f6',
     marginRight: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  sellerAvatarImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
   },
   sellerDetails: {
     flex: 1,
@@ -361,6 +414,13 @@ const styles = StyleSheet.create({
   },
   ratingContainer: {
     flexDirection: 'row',
+    alignItems: 'center',
+  },
+  ratingText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginRight: 4,
   },
   publishButton: {
     backgroundColor: '#f3f4f6',

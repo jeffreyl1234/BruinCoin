@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Image, Dimensions } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 interface Trade {
   id: string;
@@ -54,7 +55,9 @@ export default function TradeCard({ trade, onPress, width = defaultCardWidth, sh
           resizeMode="cover"
         />
       ) : (
-        <View style={[styles.image, { height: width }]} />
+        <View style={[styles.image, { height: width }]}>
+          <Ionicons name="image-outline" size={40} color="#9ca3af" />
+        </View>
       )}
       
       <View style={styles.info}>
@@ -86,6 +89,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#f3f4f6',
     borderRadius: 12,
     marginBottom: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   info: {
     paddingHorizontal: 0,

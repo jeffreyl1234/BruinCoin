@@ -213,9 +213,17 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
         
         if (!createUserResponse.ok) {
           const errorData = await createUserResponse.json();
-          Alert.alert('Error', `Failed to create user profile: ${errorData.error || 'Unknown error'}`);
-          setIsPublishing(false);
-          return;
+          // If user already exists (duplicate email/id), that's okay - continue with listing creation
+          if (errorData.error?.includes('already exists') || 
+              errorData.error?.includes('23505') ||
+              errorData.error?.includes('duplicate key')) {
+            // User already exists, continue with listing creation
+            console.log('User already exists, continuing with listing creation');
+          } else {
+            Alert.alert('Error', `Failed to create user profile: ${errorData.error || 'Unknown error'}`);
+            setIsPublishing(false);
+            return;
+          }
         }
       } else if (!userCheckResponse.ok) {
         Alert.alert('Error', 'Failed to verify user account');
