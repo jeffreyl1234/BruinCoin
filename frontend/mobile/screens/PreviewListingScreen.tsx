@@ -1,10 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
   View,
   ScrollView,
-  TextInput,
   TouchableOpacity,
   Modal,
   ActivityIndicator,
@@ -12,6 +11,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '../lib/supabaseClient';
+import Constants from 'expo-constants';
 
 export interface ListingData {
   title: string;
@@ -31,6 +32,24 @@ interface PreviewListingScreenProps {
   isPublishing?: boolean;
 }
 
+interface UserProfile {
+  user_name: string | null;
+  profile_picture_url: string | null;
+  rating: number | null;
+  category_preferences?: string[] | null;
+}
+
+const CATEGORY_EMOJIS: Record<string, string> = {
+  'Concert tickets': '🎫',
+  'Clothing': '👕',
+  'Nails': '💅',
+  'Ride Share': '🚗',
+  'Meal Swipes': '🍲',
+  'Photography': '📷',
+  'Items': '📦',
+  'Textbooks': '📚',
+};
+
 export default function PreviewListingScreen({
   visible,
   listingData,
@@ -38,6 +57,46 @@ export default function PreviewListingScreen({
   onPublish,
   isPublishing = false,
 }: PreviewListingScreenProps) {
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
+  const apiUrl = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:3001';
+
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (!visible) return;
+      
+      setLoadingProfile(true);
+      try {
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError || !authUser) {
+          console.error('Failed to get current user:', authError);
+          setLoadingProfile(false);
+          return;
+        }
+
+        const response = await fetch(`${apiUrl}/api/users/${authUser.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.user) {
+            setUserProfile({
+              user_name: data.user.user_name,
+              profile_picture_url: data.user.profile_picture_url,
+              rating: data.user.rating,
+              category_preferences: data.user.category_preferences || [],
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
+      } finally {
+        setLoadingProfile(false);
+      }
+    };
+
+    fetchUserProfile();
+  }, [visible, apiUrl]);
+
   const formatDescription = (description: string) => {
     if (!description) return [];
     // Split by lines or create bullet points from text
@@ -50,70 +109,71 @@ export default function PreviewListingScreen({
   return (
     <Modal visible={visible} animationType="none" presentationStyle="overFullScreen">
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-        {/* Top Bar */}
-        <View style={styles.topBar}>
-          <Text style={styles.topBarText}>Preview Listing</Text>
-        </View>
-
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          {/* Navigation Bar with Search */}
+          {/* Navigation Bar */}
           <View style={styles.navBar}>
             <TouchableOpacity onPress={onClose} style={styles.backButton}>
               <Ionicons name="arrow-back" size={24} color="#6b7280" />
             </TouchableOpacity>
-            <View style={styles.searchBar}>
-              <Ionicons name="search" size={20} color="#9ca3af" />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search"
-                placeholderTextColor="#9ca3af"
-                editable={false}
-              />
-            </View>
+            <Text style={styles.navTitle}>Preview Listing</Text>
+            <View style={styles.navSpacer} />
           </View>
 
           {/* Main Content Card */}
           <View style={styles.contentCard}>
             {/* Title Section */}
             <View style={styles.titleSection}>
-              <Text style={styles.titleText}>{listingData.title || 'Title'}</Text>
-              <View style={styles.statusContainer}>
-                <View style={styles.statusDot} />
-                <Text style={styles.statusText}>{listingData.selectedOption || 'Looking for'}</Text>
+              <View style={styles.titleLeft}>
+                <Text style={styles.titleText}>{listingData.title || 'Title'}</Text>
+                {/* Rating with stars */}
+                <View style={styles.ratingRow}>
+                  {[...Array(5)].map((_, i) => (
+                    <Ionicons key={i} name="star" size={16} color="#FFD700" style={styles.star} />
+                  ))}
+                  <Text style={styles.ratingText}>5.0 (24 Reviews)</Text>
+                </View>
+                {/* Category Tag */}
+                {listingData.category && (
+                  <View style={styles.categoryTag}>
+                    <Ionicons name="camera" size={14} color="#6b7280" />
+                    <Text style={styles.categoryTagText}>{listingData.category.toLowerCase()}</Text>
+                  </View>
+                )}
+              </View>
+              {/* Price on right */}
+              <View style={styles.priceContainer}>
+                <View style={styles.priceDot} />
+                <Text style={styles.priceText}>${listingData.price || '0'}</Text>
               </View>
             </View>
 
             {/* Images */}
-            <View style={styles.imagesContainer}>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              style={styles.imagesContainer}
+              contentContainerStyle={styles.imagesContent}
+            >
               {listingData.images && listingData.images.length > 0 ? (
-                listingData.images.slice(0, 2).map((uri, index) => (
+                listingData.images.map((uri, index) => (
                   <Image
                     key={index}
                     source={{ uri }}
-                    style={[styles.imagePlaceholder, index > 0 && { marginLeft: 12 }]}
+                    style={styles.image}
+                    resizeMode="cover"
                   />
                 ))
               ) : (
                 <>
-                  <View style={styles.imagePlaceholder} />
-                  <View style={[styles.imagePlaceholder, { marginLeft: 12 }]} />
+                  <View style={styles.imagePlaceholder}>
+                    <Ionicons name="image-outline" size={48} color="#9ca3af" />
+                  </View>
+                  <View style={styles.imagePlaceholder}>
+                    <Ionicons name="image-outline" size={48} color="#9ca3af" />
+                  </View>
                 </>
               )}
-            </View>
-
-            {/* Tags Section */}
-            {listingData.tags && listingData.tags.length > 0 && (
-              <View style={styles.tagsSection}>
-                <Text style={styles.sectionTitle}>Tags</Text>
-                <View style={styles.tagsContainer}>
-                  {listingData.tags.map((tag, index) => (
-                    <View key={index} style={styles.tagPill}>
-                      <Text style={styles.tagText}>{tag}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )}
+            </ScrollView>
 
             {/* Description Section */}
             <View style={styles.descriptionSection}>
@@ -132,44 +192,69 @@ export default function PreviewListingScreen({
               )}
             </View>
 
-            {/* Action Buttons */}
-              <View style={styles.actionButtons}>
-                <TouchableOpacity style={styles.actionButton}>
-                  <Text style={styles.actionButtonText}>Make an offer</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionButton, { marginLeft: 12 }]}>
-                  <Text style={styles.actionButtonText}>Contact Seller</Text>
-                </TouchableOpacity>
-              </View>
-
             {/* Seller Section */}
             <View style={styles.sellerSection}>
               <Text style={styles.sectionTitle}>Seller</Text>
-              <View style={styles.sellerInfo}>
-                <View style={styles.sellerAvatar} />
-                <View style={styles.sellerDetails}>
-                  <Text style={styles.sellerName}>First Last</Text>
-                  <View style={styles.ratingContainer}>
-                    {[...Array(5)].map((_, i) => (
-                      <View key={i} style={i > 0 ? { marginLeft: 2 } : undefined}>
-                        <Ionicons name="star" size={16} color="#3b82f6" />
-                      </View>
-                    ))}
+              <View style={styles.sellerInfoRow}>
+                <View style={styles.sellerInfo}>
+                  <View style={styles.sellerAvatar}>
+                    {userProfile?.profile_picture_url ? (
+                      <Image 
+                        source={{ uri: userProfile.profile_picture_url }} 
+                        style={styles.sellerAvatarImage}
+                      />
+                    ) : (
+                      <Ionicons name="person" size={24} color="#9ca3af" />
+                    )}
+                  </View>
+                  <View style={styles.sellerDetails}>
+                    <Text style={styles.sellerName}>
+                      {loadingProfile ? 'Loading...' : (userProfile?.user_name || 'Anonymous Seller')}
+                    </Text>
+                    <View style={styles.sellerRatingContainer}>
+                      {userProfile?.rating !== null && userProfile?.rating !== undefined ? (
+                        <>
+                          <Text style={styles.sellerRatingText}>
+                            {userProfile.rating.toFixed(1)}
+                          </Text>
+                          <Ionicons name="star" size={14} color="#FFD700" />
+                        </>
+                      ) : (
+                        <>
+                          <Text style={styles.sellerRatingText}>0.0</Text>
+                          <Ionicons name="star" size={14} color="#FFD700" />
+                        </>
+                      )}
+                    </View>
                   </View>
                 </View>
+                {/* Interested to trade section */}
+                {userProfile?.category_preferences && userProfile.category_preferences.length > 0 && (
+                  <View style={styles.interestsContainer}>
+                    <Text style={styles.interestsLabel}>Interested to trade:</Text>
+                    <View style={styles.interestsTags}>
+                      {userProfile.category_preferences.slice(0, 3).map((category, index) => (
+                        <View key={index} style={styles.interestTag}>
+                          <Text style={styles.interestEmoji}>{CATEGORY_EMOJIS[category] || '📦'}</Text>
+                          <Text style={styles.interestText}>{category}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
               </View>
             </View>
 
-            {/* Publish Button */}
+            {/* Continue Button */}
             <TouchableOpacity 
-              style={[styles.publishButton, isPublishing && styles.publishButtonDisabled]} 
+              style={[styles.continueButton, isPublishing && styles.continueButtonDisabled]} 
               onPress={onPublish}
               disabled={isPublishing}
             >
               {isPublishing ? (
-                <ActivityIndicator color="#1f2937" />
+                <ActivityIndicator color="#ffffff" />
               ) : (
-                <Text style={styles.publishButtonText}>Publish</Text>
+                <Text style={styles.continueButtonText}>Continue</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -184,16 +269,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f3f4f6',
   },
-  topBar: {
-    backgroundColor: '#1f2937',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  topBarText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#9ca3af',
-  },
   scrollView: {
     flex: 1,
   },
@@ -207,20 +282,15 @@ const styles = StyleSheet.create({
   backButton: {
     marginRight: 12,
   },
-  searchBar: {
+  navTitle: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f3f4f6',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 40,
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: 8,
-    fontSize: 14,
+    fontSize: 18,
+    fontWeight: '600',
     color: '#1f2937',
+    textAlign: 'center',
+  },
+  navSpacer: {
+    width: 36,
   },
   contentCard: {
     backgroundColor: '#ffffff',
@@ -231,59 +301,80 @@ const styles = StyleSheet.create({
   titleSection: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 16,
+  },
+  titleLeft: {
+    flex: 1,
   },
   titleText: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#1f2937',
-    flex: 1,
+    marginBottom: 8,
   },
-  statusContainer: {
+  ratingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: 12,
+    marginBottom: 8,
   },
-  statusDot: {
+  star: {
+    marginRight: 2,
+  },
+  ratingText: {
+    fontSize: 14,
+    color: '#1f2937',
+    marginLeft: 8,
+  },
+  categoryTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f3f4f6',
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    alignSelf: 'flex-start',
+  },
+  categoryTagText: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginLeft: 4,
+  },
+  priceContainer: {
+    alignItems: 'flex-end',
+  },
+  priceDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#9ca3af',
-    marginRight: 6,
+    backgroundColor: '#ef4444',
+    marginBottom: 4,
   },
-  statusText: {
-    fontSize: 14,
-    color: '#6b7280',
+  priceText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
   },
   imagesContainer: {
-    flexDirection: 'row',
     marginBottom: 20,
   },
+  imagesContent: {
+    paddingRight: 16,
+  },
+  image: {
+    width: 300,
+    height: 200,
+    borderRadius: 12,
+    marginRight: 12,
+  },
   imagePlaceholder: {
-    flex: 1,
+    width: 300,
     height: 200,
     backgroundColor: '#f3f4f6',
     borderRadius: 12,
-  },
-  tagsSection: {
-  marginBottom: 20,
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  tagPill: {
-    backgroundColor: '#e5e7eb',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  tagText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#1f2937',
+    marginRight: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   descriptionSection: {
     marginBottom: 20,
@@ -312,36 +403,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#1f2937',
     lineHeight: 20,
-    textDecorationLine: 'underline',
   },
   noDescription: {
     fontSize: 14,
     color: '#9ca3af',
     fontStyle: 'italic',
   },
-  actionButtons: {
-    flexDirection: 'row',
-    marginBottom: 20,
-  },
-  actionButton: {
-    flex: 1,
-    backgroundColor: '#f3f4f6',
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1f2937',
-  },
   sellerSection: {
     marginBottom: 20,
+  },
+  sellerInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
   },
   sellerInfo: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
   },
   sellerAvatar: {
     width: 60,
@@ -349,6 +428,14 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     backgroundColor: '#f3f4f6',
     marginRight: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  sellerAvatarImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
   },
   sellerDetails: {
     flex: 1,
@@ -359,23 +446,63 @@ const styles = StyleSheet.create({
     color: '#1f2937',
     marginBottom: 4,
   },
-  ratingContainer: {
+  sellerRatingContainer: {
     flexDirection: 'row',
+    alignItems: 'center',
   },
-  publishButton: {
+  sellerRatingText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginRight: 4,
+  },
+  interestsContainer: {
+    marginLeft: 16,
+    flex: 1,
+  },
+  interestsLabel: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginBottom: 8,
+  },
+  interestsTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  interestTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#f3f4f6',
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  interestEmoji: {
+    fontSize: 14,
+    marginRight: 4,
+  },
+  interestText: {
+    fontSize: 12,
+    color: '#1f2937',
+    fontWeight: '500',
+  },
+  continueButton: {
+    backgroundColor: '#1e40af',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 8,
   },
-  publishButtonDisabled: {
+  continueButtonDisabled: {
     opacity: 0.6,
   },
-  publishButtonText: {
+  continueButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1f2937',
+    color: '#ffffff',
   },
 });
 

@@ -20,6 +20,7 @@ import Constants from 'expo-constants';
 interface ProfileScreenProps {
   onBack?: () => void;
   onLogout?: () => void;
+  viewUserId?: string | null; // If provided, view this user's profile instead of current user's
 }
 
 interface User {
@@ -44,7 +45,7 @@ interface Trade {
   image_urls: string[] | null;
 }
 
-export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) {
+export default function ProfileScreen({ onBack, onLogout, viewUserId }: ProfileScreenProps) {
   const [user, setUser] = useState<User | null>(null);
   const [userListings, setUserListings] = useState<Trade[]>([]);
   const [tradePreferences, setTradePreferences] = useState<string[]>([]);
@@ -65,49 +66,70 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
 
   useEffect(() => {
     fetchUserData();
-  }, []);
+  }, [viewUserId]);
 
   const fetchUserData = async () => {
     try {
       setLoading(true);
       
-      // Get current user from Supabase auth
-      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+      // If viewing another user's profile, use viewUserId; otherwise get current user
+      let targetUserId: string;
+      let isViewingOtherUser = false;
       
-      if (authError || !authUser) {
-        console.error('Failed to get current user:', authError);
-        setLoading(false);
-        return;
+      if (viewUserId) {
+        targetUserId = viewUserId;
+        isViewingOtherUser = true;
+      } else {
+        // Get current user from Supabase auth
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError || !authUser) {
+          console.error('Failed to get current user:', authError);
+          setLoading(false);
+          return;
+        }
+        
+        targetUserId = authUser.id;
+        setEmailAddress(authUser.email || '');
       }
 
-      setEmailAddress(authUser.email || '');
+      let metadataDisplayName = '';
+      let metadataBio = '';
+      let metadataProfileUrl = null;
+      let metadataTradePrefs: string[] = [];
+      let metadataCategoryPrefs: string[] = [];
+      let metadataInterests: string[] = [];
 
-      const metadata = authUser.user_metadata ?? {};
-
-      const metadataDisplayName =
-        typeof metadata.display_name === 'string' ? metadata.display_name.trim() : '';
-      const metadataBio =
-        typeof metadata.bio === 'string' ? metadata.bio : '';
-      const metadataProfileUrl =
-        typeof metadata.profile_picture_url === 'string' && metadata.profile_picture_url.length > 0
-          ? metadata.profile_picture_url
-          : null;
-
-      const metadataTradePrefs = Array.isArray(metadata.trade_preferences)
-        ? metadata.trade_preferences.map((item: any) => String(item))
-        : typeof metadata.trade_preferences === 'string'
-          ? metadata.trade_preferences.split(',').map(item => item.trim()).filter(Boolean)
-          : [];
-      const metadataCategoryPrefs = Array.isArray(metadata.category_preferences)
-        ? metadata.category_preferences.map((item: any) => String(item))
-        : typeof metadata.category_preferences === 'string'
-          ? metadata.category_preferences.split(',').map(item => item.trim()).filter(Boolean)
-          : [];
-      const metadataInterests = Array.isArray(metadata.interests)
-        ? metadata.interests.map((item: any) => String(item))
-        : typeof metadata.interests === 'string'
-          ? metadata.interests.split(',').map(item => item.trim()).filter(Boolean)
-          : [];
+      // Only get metadata if viewing own profile
+      if (!isViewingOtherUser) {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (authUser) {
+          const metadata = authUser.user_metadata ?? {};
+          metadataDisplayName =
+            typeof metadata.display_name === 'string' ? metadata.display_name.trim() : '';
+          metadataBio =
+            typeof metadata.bio === 'string' ? metadata.bio : '';
+          metadataProfileUrl =
+            typeof metadata.profile_picture_url === 'string' && metadata.profile_picture_url.length > 0
+              ? metadata.profile_picture_url
+              : null;
+          metadataTradePrefs = Array.isArray(metadata.trade_preferences)
+            ? metadata.trade_preferences.map((item: any) => String(item))
+            : typeof metadata.trade_preferences === 'string'
+              ? metadata.trade_preferences.split(',').map(item => item.trim()).filter(Boolean)
+              : [];
+          metadataCategoryPrefs = Array.isArray(metadata.category_preferences)
+            ? metadata.category_preferences.map((item: any) => String(item))
+            : typeof metadata.category_preferences === 'string'
+              ? metadata.category_preferences.split(',').map(item => item.trim()).filter(Boolean)
+              : [];
+          metadataInterests = Array.isArray(metadata.interests)
+            ? metadata.interests.map((item: any) => String(item))
+            : typeof metadata.interests === 'string'
+              ? metadata.interests.split(',').map(item => item.trim()).filter(Boolean)
+              : [];
+        }
+      }
 
       let dbTradePrefs: string[] = [];
       let dbCategoryPrefs: string[] = [];
@@ -118,7 +140,7 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
       let resolvedProfileUrl = metadataProfileUrl;
 
       // Fetch user profile from API
-      const userResponse = await fetch(`${apiUrl}/api/users/${authUser.id}`);
+      const userResponse = await fetch(`${apiUrl}/api/users/${targetUserId}`);
       if (userResponse.ok) {
         const userData = await userResponse.json();
         if (userData.user) {
@@ -137,18 +159,27 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
           }
         }
       } else if (userResponse.status === 404) {
-        // User doesn't exist in users table, create one
-        const createResponse = await fetch(`${apiUrl}/api/users`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            id: authUser.id,
-            email: authUser.email || '',
-            user_name: authUser.user_metadata?.user_name || null,
-          }),
-        });
+        // User doesn't exist in users table
+        if (isViewingOtherUser) {
+          // Can't create profile for other users
+          console.error('User profile not found');
+          setLoading(false);
+          return;
+        }
+        // Create one for current user
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (authUser) {
+          const createResponse = await fetch(`${apiUrl}/api/users`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              id: authUser.id,
+              email: authUser.email || '',
+              user_name: authUser.user_metadata?.user_name || null,
+            }),
+          });
         
         if (createResponse.ok) {
           const createData = await createResponse.json();
@@ -185,10 +216,11 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
           resolvedBio = resolvedBio || fallbackUser.bio || '';
           resolvedProfileUrl = resolvedProfileUrl || fallbackUser.profile_picture_url || null;
         }
+        }
       }
 
       // Fetch user's listings
-      const listingsResponse = await fetch(`${apiUrl}/api/trades?offerer_user_id=${authUser.id}&limit=20&accepted=false`);
+      const listingsResponse = await fetch(`${apiUrl}/api/trades?offerer_user_id=${targetUserId}&limit=20&accepted=false`);
       if (listingsResponse.ok) {
         const listingsData = await listingsResponse.json();
         if (listingsData.trades) {
@@ -215,10 +247,17 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
       setEditingBio(normalizedBio);
       setProfileImageUri(normalizedProfileUri);
       setProfileImageSavedUri(normalizedProfileUri);
-      setDisplayNameOverride(
-        normalizedName ||
-          (authUser.email ? authUser.email.split('@')[0].replace(/\./g, ' ') : '')
-      );
+      if (!isViewingOtherUser) {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (authUser) {
+          setDisplayNameOverride(
+            normalizedName ||
+              (authUser.email ? authUser.email.split('@')[0].replace(/\./g, ' ') : '')
+          );
+        }
+      } else {
+        setDisplayNameOverride(normalizedName);
+      }
     } catch (error) {
       console.error('Failed to fetch user data:', error);
     } finally {
@@ -413,7 +452,7 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
   };
 
   const handleSave = async () => {
-    if (!user) return;
+    if (!user || viewUserId) return; // Don't allow saving when viewing another user's profile
 
     try {
       setSaving(true);
@@ -511,11 +550,6 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Top Bar */}
-      <View style={styles.topBar}>
-        <Text style={styles.topBarText}>Seller Profile Page</Text>
-      </View>
-
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -538,23 +572,25 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
           <View style={styles.usernameTag}>
             <Text style={styles.usernameText}>{getUsername()}</Text>
           </View>
-          {!isEditing ? (
-            <TouchableOpacity onPress={handleEdit} style={styles.editButton}>
-              <Ionicons name="create-outline" size={20} color="#3b82f6" />
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.editActions}>
-              <TouchableOpacity onPress={handleCancel} style={styles.cancelButton}>
-                <Ionicons name="close" size={20} color="#ef4444" />
+          {!viewUserId && (
+            !isEditing ? (
+              <TouchableOpacity onPress={handleEdit} style={styles.editButton}>
+                <Ionicons name="create-outline" size={20} color="#3b82f6" />
               </TouchableOpacity>
-              <TouchableOpacity onPress={handleSave} style={styles.saveButton} disabled={saving}>
-                {saving ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
-                ) : (
-                  <Ionicons name="checkmark" size={20} color="#ffffff" />
-                )}
-              </TouchableOpacity>
-            </View>
+            ) : (
+              <View style={styles.editActions}>
+                <TouchableOpacity onPress={handleCancel} style={styles.cancelButton}>
+                  <Ionicons name="close" size={20} color="#ef4444" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleSave} style={styles.saveButton} disabled={saving}>
+                  {saving ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <Ionicons name="checkmark" size={20} color="#ffffff" />
+                  )}
+                </TouchableOpacity>
+              </View>
+            )
           )}
         </View>
 
@@ -568,7 +604,7 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
         <View style={styles.profileSection}>
           <View style={styles.profileImageContainer}>
                 <TouchableOpacity
-                  onPress={isEditing ? pickProfileImage : undefined}
+                  onPress={!viewUserId && isEditing ? pickProfileImage : undefined}
                   disabled={!isEditing}
                   style={styles.profileImageTouchable}
                 >
@@ -722,12 +758,14 @@ export default function ProfileScreen({ onBack, onLogout }: ProfileScreenProps) 
         </View>
           </>
         )}
-        <View style={styles.logoutContainer}>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={20} color="#ef4444" style={{ marginRight: 8 }} />
-            <Text style={styles.logoutText}>Logout</Text>
-          </TouchableOpacity>
-        </View>
+        {!viewUserId && (
+          <View style={styles.logoutContainer}>
+            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+              <Ionicons name="log-out-outline" size={20} color="#ef4444" style={{ marginRight: 8 }} />
+              <Text style={styles.logoutText}>Logout</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -737,16 +775,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f3f4f6',
-  },
-  topBar: {
-    backgroundColor: '#1f2937',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  topBarText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#6b7280',
   },
   scrollView: {
     flex: 1,
@@ -758,11 +786,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 12,
+    paddingBottom: 12,
     backgroundColor: '#ffffff',
   },
   backButton: {
     marginRight: 12,
+    padding: 8,
   },
   searchBar: {
     flex: 1,

@@ -213,9 +213,17 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
         
         if (!createUserResponse.ok) {
           const errorData = await createUserResponse.json();
-          Alert.alert('Error', `Failed to create user profile: ${errorData.error || 'Unknown error'}`);
-          setIsPublishing(false);
-          return;
+          // If user already exists (duplicate email/id), that's okay - continue with listing creation
+          if (errorData.error?.includes('already exists') || 
+              errorData.error?.includes('23505') ||
+              errorData.error?.includes('duplicate key')) {
+            // User already exists, continue with listing creation
+            console.log('User already exists, continuing with listing creation');
+          } else {
+            Alert.alert('Error', `Failed to create user profile: ${errorData.error || 'Unknown error'}`);
+            setIsPublishing(false);
+            return;
+          }
         }
       } else if (!userCheckResponse.ok) {
         Alert.alert('Error', 'Failed to verify user account');
@@ -333,7 +341,11 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
           <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
             {/* Header */}
             <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <TouchableOpacity
+                onPress={onClose}
+                style={styles.closeButton}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
                 <Ionicons name="close" size={24} color="#1f2937" />
               </TouchableOpacity>
               <Text style={styles.modalTitle}>Create a New Listing</Text>
@@ -572,7 +584,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
   },
