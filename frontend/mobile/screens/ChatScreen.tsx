@@ -14,12 +14,22 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabaseClient';
 import { useRoute } from '@react-navigation/native';
+import OfferMessage from './OfferMessage';
 
 interface Message {
   id: string;
   text: string;
-  sender: 'me' | 'other';
-  timestamp: Date;
+  sender_id: string;
+  conversation_id: string;
+  created_at: string;
+  metadata?: {
+    type: 'Buy' | 'Trade';
+    amount?: number;
+    itemName?: string;
+    itemDescription?: string;
+    tradeTitle: string;
+    tradeImageUrl: string;
+  };
 }
 
 interface ChatScreenProps {
@@ -93,13 +103,14 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
 
     if (!contactName) fetchOtherUserName();
   }, [chatId, contactName]);
+  
   const receiverId = chatId.replace('chat_with_', '');
 
   const SUGGESTED_TASKS = [
     'Schedule a Meetup',
     "Outline your product's features",
     'Ask about making potential trades or group deals',
-    "Suggest other selling items based on Josie’s posts",
+    "Suggest other selling items based on Josie's posts",
   ];
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -133,13 +144,8 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
         if (error) {
           console.error('Error fetching messages:', error.message);
         } else if (data) {
-          const loadedMessages: Message[] = data.map((msg) => ({
-            id: msg.id,
-            text: msg.text,
-            sender: msg.sender_id === userId ? 'me' : 'other',
-            timestamp: new Date(msg.created_at),
-          }));
-          setMessages(loadedMessages);
+          console.log('Fetched messages:', data); // Debug: Check if metadata is present
+          setMessages(data);
         }
       } catch (err) {
         console.error('Error loading messages:', err);
@@ -153,8 +159,9 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
 
   // Listen for new messages
   useEffect(() => {
-    if (!chatId) return;
+    if (!chatId || !userId) return;
 
+    const formattedChatId = chatId.replace('chat_with_', '');
     const channel = supabase
       .channel('messages')
       .on(
@@ -163,16 +170,11 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
-          filter: `conversation_id=eq.${chatId}`,
+          filter: `conversation_id=eq.${formattedChatId}`,
         },
         (payload) => {
-          const newMessage: Message = {
-            id: payload.new.id,
-            text: payload.new.text,
-            sender: payload.new.sender_id === userId ? 'me' : 'other',
-            timestamp: new Date(payload.new.created_at),
-          };
-          setMessages((prev: Message[]) => [...prev, newMessage]);
+          console.log('New message received:', payload.new); // Debug
+          setMessages((prev) => [...prev, payload.new as Message]);
         }
       )
       .subscribe();
@@ -182,23 +184,16 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
     };
   }, [chatId, userId]);
 
-  const extractUuid = (id: string) => {
-    const match = id.match(/[0-9a-fA-F-]{36}/);
-    return match ? match[0] : id;
-  };
-
   // Handle sending message
   const handleSendMessage = async () => {
     if (!messageText.trim() || !userId || !receiverId) return;
 
-    // Step 1: Use the provided chatId (created earlier by handleContactSeller)
-    const conversationId = chatId;
+    const conversationId = chatId.replace('chat_with_', '');
     if (!conversationId) {
       console.error('No conversation ID found.');
       return;
     }
 
-    // 🧠 Step 3: Insert the message linked to that conversation
     const { data, error } = await supabase
       .from('messages')
       .insert({
@@ -216,15 +211,63 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
     setMessageText('');
   };
 
-  if (loading) {
-  return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563eb" />
+  // Format timestamp
+  const formatTime = (timestamp: string) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true 
+    }).toLowerCase();
+  };
+
+  // Render individual message
+  const renderMessage = (message: Message) => {
+    const isCurrentUser = message.sender_id === userId;
+
+    // Check if this is an offer message
+    if (message.metadata && message.metadata.tradeTitle) {
+      return (
+        <OfferMessage
+          key={message.id}
+          message={message}
+          senderName={isCurrentUser ? 'You' : (displayName || contactName)}
+          timestamp={formatTime(message.created_at)}
+          isCurrentUser={isCurrentUser}
+        />
+      );
+    }
+
+    // Regular text message
+    return (
+      <View
+        key={message.id}
+        style={[
+          styles.messageBubble,
+          isCurrentUser ? styles.myMessage : styles.otherMessage,
+        ]}
+      >
+        <Text
+          style={[
+            styles.messageText,
+            isCurrentUser ? styles.myMessageText : styles.otherMessageText,
+          ]}
+        >
+          {message.text}
+        </Text>
       </View>
-    </SafeAreaView>
-  );
-}
+    );
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2563eb" />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -257,7 +300,7 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
             {messages.length === 0 ? (
               <View style={styles.initialState}>
                 <Text style={styles.initialText}>
-                  This is the beginning of your conversation with {contactName}.
+                  This is the beginning of your conversation with {displayName || contactName}.
                 </Text>
 
                 <View style={styles.suggestedTasks}>
@@ -277,26 +320,7 @@ export default function ChatScreen({ chatId, contactName, onBack }: ChatScreenPr
               </View>
             ) : (
               <View style={styles.messagesContainer}>
-                {messages.map((message) => (
-                  <View
-                    key={message.id}
-                    style={[
-                      styles.messageBubble,
-                      message.sender === 'me' ? styles.myMessage : styles.otherMessage,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.messageText,
-                        message.sender === 'me'
-                          ? styles.myMessageText
-                          : styles.otherMessageText,
-                      ]}
-                    >
-                      {message.text}
-                    </Text>
-                  </View>
-                ))}
+                {messages.map((message) => renderMessage(message))}
               </View>
             )}
           </ScrollView>
@@ -385,6 +409,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingTop: 10,
+    paddingBottom: 10,
     borderTopWidth: 0.8,
     borderTopColor: '#E5E7EB',
     backgroundColor: '#F9FAFB',
@@ -402,9 +427,9 @@ const styles = StyleSheet.create({
   },
   sendButton: { padding: 4 },
   loadingContainer: {
-  flex: 1,
-  justifyContent: 'center',
-  alignItems: 'center',
-  backgroundColor: '#FFFFFF',
-},
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
 });
