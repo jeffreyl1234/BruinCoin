@@ -97,30 +97,31 @@ export default function PreviewListingScreen({
   return (
     <Modal visible={visible} animationType="none" presentationStyle="overFullScreen">
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-        {/* Top Bar */}
-        <View style={styles.topBar}>
-          <Text style={styles.topBarText}>Preview Listing</Text>
-        </View>
-
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          {/* Navigation Bar with Search */}
-          <View style={styles.navBar}>
-            <TouchableOpacity onPress={onClose} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color="#6b7280" />
-            </TouchableOpacity>
-            <View style={styles.searchBar}>
-              <Ionicons name="search" size={20} color="#9ca3af" />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search"
-                placeholderTextColor="#9ca3af"
-                editable={false}
-              />
+          {/* Unified Card Container */}
+          <View style={styles.unifiedCard}>
+            {/* Navigation Bar with Search */}
+            <View style={styles.navBar}>
+              <TouchableOpacity 
+                onPress={onClose} 
+                style={styles.backButton}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name="arrow-back" size={24} color="#6b7280" />
+              </TouchableOpacity>
+              <View style={styles.searchBar}>
+                <Ionicons name="search" size={20} color="#9ca3af" />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search"
+                  placeholderTextColor="#9ca3af"
+                  editable={false}
+                />
+              </View>
             </View>
-          </View>
 
-          {/* Main Content Card */}
-          <View style={styles.contentCard}>
+            {/* Main Content */}
+            <View style={styles.contentCard}>
             {/* Title Section */}
             <View style={styles.titleSection}>
               <Text style={styles.titleText}>{listingData.title || 'Title'}</Text>
@@ -232,6 +233,7 @@ export default function PreviewListingScreen({
                 <Text style={styles.publishButtonText}>Publish</Text>
               )}
             </TouchableOpacity>
+            </View>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -244,28 +246,28 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f3f4f6',
   },
-  topBar: {
-    backgroundColor: '#1f2937',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  topBarText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#9ca3af',
-  },
   scrollView: {
     flex: 1,
+  },
+  unifiedCard: {
+    backgroundColor: '#ffffff',
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 16,
+    borderRadius: 20,
+    overflow: 'hidden',
   },
   navBar: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 12,
+    paddingBottom: 12,
     backgroundColor: '#ffffff',
   },
   backButton: {
     marginRight: 12,
+    padding: 8,
   },
   searchBar: {
     flex: 1,
@@ -284,9 +286,8 @@ const styles = StyleSheet.create({
   },
   contentCard: {
     backgroundColor: '#ffffff',
-    margin: 16,
-    borderRadius: 12,
     padding: 16,
+    paddingTop: 0,
   },
   titleSection: {
     flexDirection: 'row',

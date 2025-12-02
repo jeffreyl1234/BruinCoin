@@ -222,7 +222,7 @@ export default function ListingDetailScreen({
 
   return (
     <Modal visible={visible} animationType="none" presentationStyle="overFullScreen">
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         {/* Header with back button */}
         <View style={styles.header}>
           <TouchableOpacity
@@ -461,8 +461,8 @@ const styles = StyleSheet.create({
 
   header: {
     paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 10,
+    paddingTop: 8,
+    paddingBottom: 8,
     backgroundColor: '#f0f0f0',
   },
   backButton: {
