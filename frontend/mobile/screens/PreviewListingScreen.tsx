@@ -114,17 +114,23 @@ export default function PreviewListingScreen({
     <Modal visible={visible} animationType="none" presentationStyle="overFullScreen">
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          {/* Navigation Bar */}
-          <View style={styles.navBar}>
-            <TouchableOpacity onPress={onClose} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color="#6b7280" />
-            </TouchableOpacity>
-            <Text style={styles.navTitle}>Preview Listing</Text>
-            <View style={styles.navSpacer} />
-          </View>
+          {/* Unified Card Container */}
+          <View style={styles.unifiedCard}>
+            {/* Navigation Bar */}
+            <View style={styles.navBar}>
+              <TouchableOpacity 
+                onPress={onClose} 
+                style={styles.backButton}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name="arrow-back" size={24} color="#6b7280" />
+              </TouchableOpacity>
+              <Text style={styles.navTitle}>Preview Listing</Text>
+              <View style={styles.navSpacer} />
+            </View>
 
-          {/* Main Content Card */}
-          <View style={styles.contentCard}>
+            {/* Main Content */}
+            <View style={styles.contentCard}>
             {/* Title Section */}
             <View style={styles.titleSection}>
               <View style={styles.titleLeft}>
@@ -267,6 +273,7 @@ export default function PreviewListingScreen({
                 <Text style={styles.continueButtonText}>Continue</Text>
               )}
             </TouchableOpacity>
+            </View>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -282,15 +289,25 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  unifiedCard: {
+    backgroundColor: '#ffffff',
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 16,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
   navBar: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 12,
+    paddingBottom: 12,
     backgroundColor: '#ffffff',
   },
   backButton: {
     marginRight: 12,
+    padding: 8,
   },
   navTitle: {
     flex: 1,
@@ -304,9 +321,8 @@ const styles = StyleSheet.create({
   },
   contentCard: {
     backgroundColor: '#ffffff',
-    margin: 16,
-    borderRadius: 12,
     padding: 16,
+    paddingTop: 0,
   },
   titleSection: {
     flexDirection: 'row',

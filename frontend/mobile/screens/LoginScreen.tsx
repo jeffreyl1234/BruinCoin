@@ -1,12 +1,12 @@
-import { StyleSheet, Text, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ScrollView, View, TouchableWithoutFeedback, Keyboard } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, View } from 'react-native';
 import { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import Constants from 'expo-constants';
-import { Ionicons } from '@expo/vector-icons';
+import { palette, buttons } from '../constants/theme';
 
 interface LoginScreenProps {
-  onLogin: (result: { username?: string }) => void;
+  onLogin: (result: { requiresOnboarding: boolean }) => void;
   onBack?: () => void;
+  onSwitchToRegister?: () => void;
 }
 
 // Validate ucla.edu email
@@ -17,10 +17,11 @@ const isValidUclaEmail = (email: string): boolean => {
   );
 };
 
-export default function LoginScreen({ onLogin, onBack }: LoginScreenProps) {
+export default function LoginScreen({ onLogin, onBack, onSwitchToRegister }: LoginScreenProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const handleLogin = async () => {
     // Validate email format
@@ -49,45 +50,11 @@ export default function LoginScreen({ onLogin, onBack }: LoginScreenProps) {
       }
 
       if (data.user) {
-        // Verify user exists in public.users table
-        const apiUrl = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:3001';
-        const userCheckResponse = await fetch(`${apiUrl}/api/users/${data.user.id}`);
-        
-        if (userCheckResponse.status === 404) {
-          // User doesn't exist in public.users - sign them out and prevent login
-          await supabase.auth.signOut();
-          Alert.alert(
-            'Account Not Found',
-            'Your account was not found in our system. Please register to create an account.',
-            [{ text: 'OK' }]
-          );
-          setLoading(false);
-          return;
-        }
-        
-        if (!userCheckResponse.ok) {
-          // Error checking user - sign them out for safety
-          await supabase.auth.signOut();
-          Alert.alert(
-            'Error',
-            'Unable to verify your account. Please try again or contact support.',
-            [{ text: 'OK' }]
-          );
-          setLoading(false);
-          return;
-        }
+        const onboardingComplete =
+          data.user.user_metadata?.onboarding_complete === true ||
+          data.user.user_metadata?.onboarding_complete === 'true';
 
-        // User exists in public.users - get username for welcome back screen
-        const userDataResponse = await fetch(`${apiUrl}/api/users/${data.user.id}`);
-        let username = '';
-        if (userDataResponse.ok) {
-          const userData = await userDataResponse.json();
-          if (userData.user?.user_name) {
-            username = userData.user.user_name;
-          }
-        }
-
-        onLogin({ username });
+        onLogin({ requiresOnboarding: !onboardingComplete });
       }
     } catch (error: any) {
       Alert.alert('Error', error.message || 'An unexpected error occurred');
@@ -96,63 +63,98 @@ export default function LoginScreen({ onLogin, onBack }: LoginScreenProps) {
     }
   };
 
-  return (
-    <KeyboardAvoidingView 
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-    >
-      {/* Navigation Bar */}
-      <View style={styles.navBar}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={28} color="#666" />
-        </TouchableOpacity>
-      </View>
+  const handleForgotPassword = async () => {
+    if (!email) {
+      Alert.alert('Missing Email', 'Enter your UCLA email to reset your password.');
+      return;
+    }
 
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <ScrollView 
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
-          <Text style={styles.title}>Log in</Text>
-          <Text style={styles.subtitle}>Welcome back!</Text>
-          
+    if (!isValidUclaEmail(email)) {
+      Alert.alert('Invalid Email', 'Please use a @ucla.edu email address.');
+      return;
+    }
+
+    setResetting(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase());
+
+      if (error) {
+        Alert.alert('Reset Error', error.message);
+        return;
+      }
+
+      Alert.alert('Password Reset', 'Check your UCLA inbox for a reset link.');
+    } catch (error: any) {
+      Alert.alert('Reset Error', error.message || 'Unable to send reset email.');
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <View style={styles.content}>
+        <View style={styles.iconStack}>
+          <View style={[styles.iconCircle, styles.iconCirclePrimary]} />
+          <View style={[styles.iconCircle, styles.iconCircleSecondary]} />
+        </View>
+
+        <Text style={styles.title}>{'Log in using your\nUCLA account'}</Text>
+        
+        <View style={styles.formGroup}>
           <TextInput
             style={styles.input}
-            placeholder="UCLA Email Address"
-            placeholderTextColor="#9ca3af"
+            placeholder="UCLA email"
+            placeholderTextColor={palette.textSecondary}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
           />
-          
-          <View style={styles.passwordContainer}>
+
+          <View>
             <TextInput
               style={styles.input}
               placeholder="Password"
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor={palette.textSecondary}
               value={password}
               onChangeText={setPassword}
               secureTextEntry
             />
-            <TouchableOpacity style={styles.forgotPasswordButton}>
-              <Text style={styles.forgotPasswordText}>Forgot your password?</Text>
+            <TouchableOpacity
+              style={styles.forgotPasswordButton}
+              onPress={handleForgotPassword}
+              disabled={resetting}
+            >
+              <Text style={[styles.forgotPasswordText, resetting && styles.forgotPasswordTextDisabled]}>
+                {resetting ? 'Sending reset link…' : 'Forgot your password?'}
+              </Text>
             </TouchableOpacity>
           </View>
-          
-          <TouchableOpacity 
-            style={[styles.button, loading && styles.buttonDisabled]} 
-            onPress={handleLogin}
-            disabled={loading}
-          >
-            <Text style={styles.buttonText}>
-              {loading ? 'Logging in...' : 'Log in'}
+        </View>
+
+        <TouchableOpacity
+          style={[styles.button, loading && styles.buttonDisabled]}
+          onPress={handleLogin}
+          disabled={loading}
+        >
+          <Text style={styles.buttonText}>
+            {loading ? 'Logging in...' : 'Log in'}
+          </Text>
+        </TouchableOpacity>
+
+        {onSwitchToRegister && (
+          <TouchableOpacity style={styles.switchButton} onPress={onSwitchToRegister}>
+            <Text style={styles.switchText}>
+              Don't have an account? <Text style={styles.switchTextBold}>Sign up</Text>
             </Text>
           </TouchableOpacity>
-        </ScrollView>
-      </TouchableWithoutFeedback>
+        )}
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -160,72 +162,89 @@ export default function LoginScreen({ onLogin, onBack }: LoginScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: palette.surface,
   },
-  navBar: {
-    flexDirection: 'row',
+  content: {
+    flex: 1,
+    paddingHorizontal: 32,
+    paddingBottom: 48,
+    justifyContent: 'center',
+    backgroundColor: palette.surface,
+  },
+  iconStack: {
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
+    gap: 16,
+    marginBottom: 40,
   },
-  backButton: {
-    padding: 4,
+  iconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
   },
-  scrollContent: {
-    flexGrow: 1,
-    padding: 20,
-    paddingTop: 8,
+  iconCirclePrimary: {
+    backgroundColor: '#202F46',
+  },
+  iconCircleSecondary: {
+    backgroundColor: buttons.primaryBackground,
   },
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    marginBottom: 8,
-    textAlign: 'left',
-    color: '#111827',
+    marginBottom: 40,
+    textAlign: 'center',
+    color: palette.navy,
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#6b7280',
-    marginBottom: 32,
-    textAlign: 'left',
+  formGroup: {
+    width: '100%',
+    marginBottom: 24,
+    gap: 16,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 16,
+    borderColor: palette.surfaceSubtle,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: palette.surfaceSubtle,
     fontSize: 16,
-    backgroundColor: '#fff',
-    color: '#111827',
-  },
-  passwordContainer: {
-    marginBottom: 8,
+    color: palette.navy,
   },
   forgotPasswordButton: {
-    alignSelf: 'flex-end',
     marginTop: 8,
-    marginBottom: 16,
+    alignSelf: 'flex-end',
   },
   forgotPasswordText: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontSize: 13,
+    color: palette.textMuted,
+  },
+  forgotPasswordTextDisabled: {
+    color: palette.textSecondary,
   },
   button: {
-    backgroundColor: '#1e40af',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: buttons.primaryBackground,
+    borderRadius: 18,
+    paddingVertical: 18,
     alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 8,
+    marginTop: 16,
   },
   buttonDisabled: {
-    backgroundColor: '#9ca3af',
+    backgroundColor: '#9CA3AF',
   },
   buttonText: {
-    color: '#fff',
+    color: buttons.primaryText,
     fontSize: 16,
     fontWeight: '600',
+  },
+  switchButton: {
+    marginTop: 24,
+    alignItems: 'center',
+  },
+  switchText: {
+    fontSize: 14,
+    color: palette.textMuted,
+  },
+  switchTextBold: {
+    fontWeight: '600',
+    color: buttons.primaryBackground,
   },
 });

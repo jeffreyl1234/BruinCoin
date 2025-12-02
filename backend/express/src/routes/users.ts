@@ -52,11 +52,33 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ error: 'email (string) is required' });
   }
 
-  // Normalize email to lowercase and trim whitespace
-  const normalizedEmail = email.toLowerCase().trim();
+  const trimmedEmail = email.trim();
+  const normalizedUsername =
+    typeof user_name === 'string' && user_name.trim().length > 0 ? user_name.trim() : undefined;
 
-  const insertData: Record<string, unknown> = { id, email: normalizedEmail };
-  if (typeof user_name === 'string') insertData.user_name = user_name;
+  if (!trimmedEmail) {
+    return res.status(400).json({ error: 'email (string) is required' });
+  }
+
+  if (normalizedUsername) {
+    const { data: usernameMatches, error: usernameCheckError } = await supabase
+      .from('users')
+      .select('id')
+      .ilike('user_name', normalizedUsername)
+      .neq('id', id)
+      .limit(1);
+
+    if (usernameCheckError) {
+      return res.status(500).json({ error: usernameCheckError.message });
+    }
+
+    if (Array.isArray(usernameMatches) && usernameMatches.length > 0) {
+      return res.status(409).json({ error: 'Username already taken' });
+    }
+  }
+
+  const insertData: Record<string, unknown> = { id, email: trimmedEmail };
+  if (normalizedUsername) insertData.user_name = normalizedUsername;
   if (typeof bio === 'string') insertData.bio = bio;
   if (typeof profile_picture_url === 'string') insertData.profile_picture_url = profile_picture_url;
 
@@ -79,29 +101,13 @@ router.post('/', async (req, res) => {
   if (error) {
     // If user already exists, return existing user
     if (error.code === '23505') { // Unique violation
-      // Check if it's an email constraint violation
-      const isEmailConstraint = error.message?.includes('users_email_key') || error.message?.includes('email');
-      
-      // Try to find existing user by email first (most common case)
-      if (isEmailConstraint) {
-        const { data: existingUserByEmail } = await supabase
-          .from('users')
-          .select('id, email, user_name, created_at, bio, rating, profile_picture_url, trade_preferences, category_preferences, interests')
-          .eq('email', normalizedEmail)
-          .single();
-        if (existingUserByEmail) {
-          return res.json({ user: existingUserByEmail });
-        }
-      }
-      
-      // Fallback: try to find by id
-      const { data: existingUserById } = await supabase
+      const { data: existingUser } = await supabase
         .from('users')
         .select('id, email, user_name, created_at, bio, rating, profile_picture_url, trade_preferences, category_preferences, interests')
         .eq('id', id)
         .single();
-      if (existingUserById) {
-        return res.json({ user: existingUserById });
+      if (existingUser) {
+        return res.json({ user: existingUser });
       }
     }
     return res.status(500).json({ error: error.message });

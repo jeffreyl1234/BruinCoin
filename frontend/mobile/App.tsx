@@ -3,9 +3,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useEffect, useState } from 'react';
 import LoginScreen from './screens/LoginScreen';
-import WelcomeScreen from './screens/WelcomeScreen';
-import CreateAccountFlow from './screens/CreateAccountFlow';
-import WelcomeBackScreen from './screens/WelcomeBackScreen';
+import OnboardingFlow from './screens/OnboardingFlow';
 import HomeScreen from './screens/HomeScreen';
 import SearchScreen from './screens/SearchScreen';
 import ProfileScreen from './screens/ProfileScreen';
@@ -14,18 +12,20 @@ import ChatScreen from './screens/ChatScreen';
 import CreateListingScreen from './screens/CreateListingScreen';
 import SeeAllScreen from './screens/SeeAllScreen';
 import ListingDetailScreen from './screens/ListingDetailScreen';
+import EditListingsScreen from './screens/EditListingsScreen';
+import SettingsScreen from './screens/SettingsScreen';
+import ProfileEditScreen from './screens/ProfileEditScreen';
 import BottomNavigation from './components/BottomNavigation';
 import { supabase } from './lib/supabaseClient';
 import { NavigationContainer } from '@react-navigation/native';
-import Constants from 'expo-constants';
 
 
 type Screen = 'home' | 'search' | 'profile' | 'messages';
-type AuthScreen = 'welcome' | 'login' | 'create-account-flow';
+type AuthScreen = 'login' | 'onboarding';
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [authScreen, setAuthScreen] = useState<AuthScreen>('welcome');
+  const [authScreen, setAuthScreen] = useState<AuthScreen>('login');
   const [initializing, setInitializing] = useState(true);
   const [currentScreen, setCurrentScreen] = useState<Screen>('home');
   const [showCreateListing, setShowCreateListing] = useState(false);
@@ -37,9 +37,9 @@ export default function App() {
   const [showListingDetail, setShowListingDetail] = useState(false);
   const [selectedTradeId, setSelectedTradeId] = useState<string | null>(null);
   const [previousScreen, setPreviousScreen] = useState<{ screen: Screen; showSeeAll?: boolean; seeAllType?: 'new' | 'recommended' | 'all' } | null>(null);
-  const [viewingUserId, setViewingUserId] = useState<string | null>(null);
-  const [showWelcomeBack, setShowWelcomeBack] = useState(false);
-  const [welcomeBackUsername, setWelcomeBackUsername] = useState('');
+  const [showEditListings, setShowEditListings] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showProfileEdit, setShowProfileEdit] = useState(false);
 
   const handleSeeAll = (type: 'new' | 'recommended' | 'all') => {
     setSeeAllType(type);
@@ -96,45 +96,12 @@ export default function App() {
           const { data: { user } } = await supabase.auth.getUser();
           if (!isMounted) return;
 
-          // Verify user exists in public.users table
-          if (user) {
-            const apiUrl = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:3001';
-            try {
-              const userCheckResponse = await fetch(`${apiUrl}/api/users/${user.id}`);
-              
-              if (userCheckResponse.status === 404) {
-                // User doesn't exist in public.users - sign them out
-                await supabase.auth.signOut();
-                if (isMounted) {
-                  setIsLoggedIn(false);
-                  setAuthScreen('login');
-                }
-                return;
-              }
-              
-              if (!userCheckResponse.ok) {
-                // Error checking user - sign them out for safety
-                await supabase.auth.signOut();
-                if (isMounted) {
-                  setIsLoggedIn(false);
-                  setAuthScreen('login');
-                }
-                return;
-              }
-
-              // User exists in public.users - proceed with session restoration
-                // If user exists, they're logged in
-                setIsLoggedIn(true);
-                setAuthScreen('login');
-            } catch (error) {
-              console.error('Failed to verify user in public.users:', error);
-              // On error, sign out for safety
-              await supabase.auth.signOut();
-              if (isMounted) {
-                setIsLoggedIn(false);
-                setAuthScreen('login');
-              }
-            }
+          if (user?.user_metadata?.onboarding_complete) {
+            setIsLoggedIn(true);
+            setAuthScreen('login');
+          } else {
+            setIsLoggedIn(false);
+            setAuthScreen('onboarding');
           }
         }
       } catch (error) {
@@ -171,41 +138,29 @@ export default function App() {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <StatusBar style="auto" />
-        {authScreen === 'welcome' ? (
-                  <WelcomeScreen
-                    onSignIn={() => setAuthScreen('login')}
-                    onJoinNow={() => setAuthScreen('create-account-flow')}
-                  />
-                ) : authScreen === 'create-account-flow' ? (
-          <CreateAccountFlow
-            onBack={() => setAuthScreen('welcome')}
+        {authScreen === 'onboarding' ? (
+          <OnboardingFlow
             onComplete={() => {
               setIsLoggedIn(true);
               setAuthScreen('login');
             }}
-          />
-        ) : showWelcomeBack ? (
-          <WelcomeBackScreen 
-            username={welcomeBackUsername}
+            onExit={() => {
+              setIsLoggedIn(false);
+              setAuthScreen('login');
+            }}
           />
         ) : authScreen === 'login' ? (
           <LoginScreen 
-            onLogin={({ username }) => {
-              // Show welcome back screen for 1 second
-              if (username) {
-                setWelcomeBackUsername(username);
-                setShowWelcomeBack(true);
-                setTimeout(() => {
-                  setShowWelcomeBack(false);
-                  setIsLoggedIn(true);
-                  setAuthScreen('login');
-                }, 1000);
+            onLogin={({ requiresOnboarding }) => {
+              if (requiresOnboarding) {
+                setIsLoggedIn(false);
+                setAuthScreen('onboarding');
               } else {
                 setIsLoggedIn(true);
                 setAuthScreen('login');
               }
             }} 
-            onBack={() => setAuthScreen('welcome')}
+            onSwitchToRegister={() => setAuthScreen('onboarding')}
           />
         ) : null}
       </SafeAreaView>
@@ -231,19 +186,39 @@ export default function App() {
           <SearchScreen onTradePress={handleTradePress} />
         )}
         
-        {currentScreen === 'profile' && (
+        {currentScreen === 'profile' && !showEditListings && !showSettings && (
           <ProfileScreen
-            onBack={() => {
-              if (viewingUserId) {
-                // If viewing another user's profile, go back to listing detail
-                setViewingUserId(null);
-                setShowListingDetail(true);
-              } else {
-                setCurrentScreen('home');
-              }
+            onBack={() => setCurrentScreen('home')}
+            onLogout={() => setIsLoggedIn(false)}
+            onTradePress={handleTradePress}
+            onEditListings={() => setShowEditListings(true)}
+            onSettings={() => setShowSettings(true)}
+          />
+        )}
+        
+        {showEditListings && (
+          <EditListingsScreen
+            onBack={() => setShowEditListings(false)}
+          />
+        )}
+        
+        {showSettings && (
+          <SettingsScreen
+            onBack={() => setShowSettings(false)}
+            onEditProfile={() => {
+              setShowSettings(false);
+              setShowProfileEdit(true);
             }}
             onLogout={() => setIsLoggedIn(false)}
-            viewUserId={viewingUserId}
+          />
+        )}
+        
+        {showProfileEdit && (
+          <ProfileEditScreen
+            onBack={() => {
+              setShowProfileEdit(false);
+              setCurrentScreen('profile');
+            }}
           />
         )}
         
@@ -304,13 +279,6 @@ export default function App() {
                   if (params?.chatId) setCurrentChatId(params.chatId);
                   if (params?.contactName) setCurrentContactName(params.contactName);
                 }, 150);
-              } else if (screen === 'ProfileScreen') {
-                // ✅ Navigate to view another user's profile
-                if (params?.userId) {
-                  setViewingUserId(params.userId);
-                  setShowListingDetail(false); // Hide listing detail temporarily
-                  setCurrentScreen('profile');
-                }
               }
             },
           }}
