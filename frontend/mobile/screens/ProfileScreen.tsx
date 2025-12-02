@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '../lib/supabaseClient';
 import Constants from 'expo-constants';
+import { palette } from '../constants/theme';
 import TradeCard from '../components/TradeCard';
 import EditListingsScreen from './EditListingsScreen';
 
@@ -576,11 +577,11 @@ export default function ProfileScreen({ onBack, onLogout, viewUserId, onTradePre
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={28} color="#000" />
+          <Ionicons name="chevron-back" size={28} color={palette.navy} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>My Profile</Text>
         <TouchableOpacity style={styles.menuButton} onPress={onSettings}>
-          <Ionicons name="menu" size={28} color="#000" />
+          <Ionicons name="menu" size={28} color={palette.navy} />
         </TouchableOpacity>
       </View>
 
@@ -591,7 +592,7 @@ export default function ProfileScreen({ onBack, onLogout, viewUserId, onTradePre
       >
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#2563eb" />
+            <ActivityIndicator size="large" color={palette.blueBright} />
           </View>
         ) : (
           <>
@@ -617,7 +618,7 @@ export default function ProfileScreen({ onBack, onLogout, viewUserId, onTradePre
                   )}
                   {isEditing && (
                     <View style={styles.profileImageOverlay}>
-                      <Ionicons name="camera" size={24} color="#ffffff" />
+                      <Ionicons name="camera" size={24} color={palette.surface} />
                     </View>
                   )}
                 </View>
@@ -630,7 +631,7 @@ export default function ProfileScreen({ onBack, onLogout, viewUserId, onTradePre
                     value={editingName}
                     onChangeText={setEditingName}
                     placeholder="Enter your name"
-                    placeholderTextColor="#9ca3af"
+                    placeholderTextColor={palette.textSecondary}
                   />
                 ) : (
                   <Text style={styles.profileName}>{displayNameLabel}</Text>
@@ -647,7 +648,7 @@ export default function ProfileScreen({ onBack, onLogout, viewUserId, onTradePre
                         key={i}
                         name="star"
                         size={16}
-                        color={filled ? "#3b82f6" : "#e5e7eb"}
+                        color={filled ? palette.blueBright : palette.neutralLight}
                         style={styles.ratingStar}
                       />
                     );
@@ -658,7 +659,7 @@ export default function ProfileScreen({ onBack, onLogout, viewUserId, onTradePre
               {!viewUserId && (
                 !isEditing ? (
                   <TouchableOpacity onPress={handleEdit} style={styles.editButton}>
-                    <Ionicons name="create-outline" size={20} color="#3b82f6" />
+                    <Ionicons name="create-outline" size={20} color={palette.blueBright} />
                   </TouchableOpacity>
                 ) : (
                   <View style={styles.editActions}>
@@ -667,9 +668,9 @@ export default function ProfileScreen({ onBack, onLogout, viewUserId, onTradePre
                     </TouchableOpacity>
                     <TouchableOpacity onPress={handleSave} style={styles.saveButton} disabled={saving}>
                       {saving ? (
-                        <ActivityIndicator size="small" color="#ffffff" />
+                        <ActivityIndicator size="small" color={palette.surface} />
                       ) : (
-                        <Ionicons name="checkmark" size={20} color="#ffffff" />
+                        <Ionicons name="checkmark" size={20} color={palette.surface} />
                       )}
                     </TouchableOpacity>
                   </View>
@@ -806,7 +807,7 @@ export default function ProfileScreen({ onBack, onLogout, viewUserId, onTradePre
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: palette.surface,
   },
   header: {
     flexDirection: 'row',
@@ -815,7 +816,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: palette.surface,
   },
   backButton: {
     padding: 4,
@@ -823,7 +824,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#000000',
+    color: palette.navy,
   },
   menuButton: {
     padding: 4,
@@ -892,13 +893,13 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#000000',
+    color: palette.navy,
     marginBottom: 8,
   },
   nameInput: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#000000',
+    color: palette.navy,
     borderBottomWidth: 1,
     borderBottomColor: '#3b82f6',
     paddingBottom: 4,
@@ -941,7 +942,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#000000',
+    color: palette.navy,
     marginBottom: 16,
   },
   bioText: {
@@ -951,14 +952,14 @@ const styles = StyleSheet.create({
   },
   bioInput: {
     fontSize: 14,
-    color: '#000000',
+    color: palette.navy,
     lineHeight: 20,
     borderWidth: 1,
     borderColor: '#d1d5db',
     borderRadius: 8,
     padding: 12,
     minHeight: 100,
-    backgroundColor: '#ffffff',
+    backgroundColor: palette.surface,
   },
   lookingForContainer: {
     flexDirection: 'row',
@@ -980,7 +981,7 @@ const styles = StyleSheet.create({
   },
   lookingForText: {
     fontSize: 14,
-    color: '#000000',
+    color: palette.navy,
     fontWeight: '500',
   },
   editListingsButton: {
@@ -1040,6 +1041,13 @@ const styles = StyleSheet.create({
     color: '#ef4444',
     fontSize: 16,
     fontWeight: '600',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: palette.textSecondary,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingVertical: 20,
   },
 });
 

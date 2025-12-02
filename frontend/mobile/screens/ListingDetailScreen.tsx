@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { supabase } from '../lib/supabaseClient';
-import Constants from 'expo-constants';
+import { palette } from '../constants/theme';
 import RateUserScreen from './RateUserScreen';
 import MakeAnOfferModal from './MakeAnOfferModal';
 
@@ -67,8 +67,24 @@ export default function ListingDetailScreen({
   const [sellerProfile, setSellerProfile] = useState<SellerProfile | null>(null);
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [showRatingModal, setShowRatingModal] = useState(false);
 
   const apiUrl = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:3001';
+
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          setCurrentUserId(user.id);
+        }
+      } catch (error) {
+        console.error('Failed to get current user:', error);
+      }
+    };
+    fetchCurrentUser();
+  }, []);
 
   useEffect(() => {
     if (visible && tradeId) {
@@ -143,6 +159,12 @@ export default function ListingDetailScreen({
     }
     return '';
   };
+
+  // Create sellerInfo from sellerProfile and trade
+  const sellerInfo = trade && sellerProfile ? {
+    id: trade.offerer_user_id,
+    name: sellerProfile.user_name || sellerProfile.email?.split('@')[0] || 'Seller'
+  } : null;
 
   const handleMakeOffer = async () => {
   try {
@@ -270,14 +292,14 @@ export default function ListingDetailScreen({
             style={styles.backButton}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
-            <Ionicons name="chevron-back" size={28} color="#666" />
+            <Ionicons name="chevron-back" size={28} color={palette.textMuted} />
           </TouchableOpacity>
         </View>
 
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           {loading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#2563eb" />
+              <ActivityIndicator size="large" color={palette.blueBright} />
             </View>
           ) : trade ? (
             <>
@@ -295,10 +317,10 @@ export default function ListingDetailScreen({
                 ) : (
                   <>
                     <View style={styles.imagePlaceholder}>
-                      <Ionicons name="image-outline" size={48} color="#9ca3af" />
+                      <Ionicons name="image-outline" size={48} color={palette.textSecondary} />
                     </View>
                     <View style={[styles.imagePlaceholder, { marginLeft: 12 }]}>
-                      <Ionicons name="image-outline" size={48} color="#9ca3af" />
+                      <Ionicons name="image-outline" size={48} color={palette.textSecondary} />
                     </View>
                   </>
                 )}
@@ -316,7 +338,7 @@ export default function ListingDetailScreen({
                           key={star} 
                           name="star" 
                           size={16} 
-                          color={star <= averageRating ? "#FFD700" : "#e5e5e5"} 
+                          color={star <= averageRating ? "#FFD700" : palette.neutralLight} 
                         />
                       ))}
                     </View>
@@ -367,7 +389,7 @@ export default function ListingDetailScreen({
                           style={styles.sellerAvatarImage}
                         />
                       ) : (
-                        <Ionicons name="person" size={24} color="#9ca3af" />
+                        <Ionicons name="person" size={24} color={palette.textSecondary} />
                       )}
                     </View>
                     <View style={styles.sellerDetails}>
@@ -460,21 +482,20 @@ export default function ListingDetailScreen({
           )}
         </SafeAreaView>
       </Modal>
-    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: palette.surfaceSubtle,
   },
 
   header: {
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 8,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: palette.surfaceSubtle,
   },
   backButton: {
     width: 40,
@@ -503,13 +524,13 @@ const styles = StyleSheet.create({
   imagePlaceholder: {
     flex: 1,
     height: 280,
-    backgroundColor: '#e5e5e5',
+    backgroundColor: palette.neutralLight,
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   contentCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: palette.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
@@ -522,7 +543,7 @@ const styles = StyleSheet.create({
   titleText: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#000000',
+    color: palette.navy,
     marginBottom: 12,
     paddingRight: 80,
   },
@@ -537,7 +558,7 @@ const styles = StyleSheet.create({
   },
   ratingText: {
     fontSize: 16,
-    color: '#666666',
+    color: palette.textMuted,
   },
   priceContainer: {
     flexDirection: 'row',
@@ -556,7 +577,7 @@ const styles = StyleSheet.create({
   priceText: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#000000',
+    color: palette.navy,
   },
   descriptionSection: {
     marginBottom: 32,
@@ -564,7 +585,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#000000',
+    color: palette.navy,
     marginBottom: 16,
   },
   bulletPoints: {
@@ -576,13 +597,13 @@ const styles = StyleSheet.create({
   },
   bullet: {
     fontSize: 16,
-    color: '#999999',
+    color: palette.textSecondary,
     marginRight: 12,
     width: 16,
   },
   bulletText: {
     fontSize: 16,
-    color: '#999999',
+    color: palette.textSecondary,
     flex: 1,
     lineHeight: 22,
   },
@@ -597,7 +618,7 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: palette.surfaceSubtle,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
@@ -613,7 +634,7 @@ const styles = StyleSheet.create({
   sellerName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#000000',
+    color: palette.navy,
     marginBottom: 4,
   },
   sellerRating: {
@@ -622,7 +643,7 @@ const styles = StyleSheet.create({
   },
   sellerRatingText: {
     fontSize: 16,
-    color: '#666666',
+    color: palette.textMuted,
     marginRight: 4,
   },
   interestedSection: {
@@ -630,7 +651,7 @@ const styles = StyleSheet.create({
   },
   interestedTitle: {
     fontSize: 14,
-    color: '#666666',
+    color: palette.textMuted,
     marginBottom: 8,
   },
   interestTags: {
@@ -640,7 +661,7 @@ const styles = StyleSheet.create({
   interestTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f8f8f8',
+    backgroundColor: palette.surfaceSubtle,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -653,7 +674,7 @@ const styles = StyleSheet.create({
   },
   interestText: {
     fontSize: 12,
-    color: '#666666',
+    color: palette.textMuted,
   },
 
   bottomActions: {
@@ -664,13 +685,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: '#ffffff',
+    backgroundColor: palette.surface,
     borderTopWidth: 1,
-    borderTopColor: '#e5e5e5',
+    borderTopColor: palette.neutralLight,
   },
   contactButton: {
     flex: 1,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: palette.surfaceSubtle,
     borderRadius: 24,
     paddingVertical: 16,
     alignItems: 'center',
@@ -679,7 +700,7 @@ const styles = StyleSheet.create({
   contactButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#000000',
+    color: palette.navy,
   },
   offerButton: {
     flex: 1,
@@ -703,7 +724,7 @@ const styles = StyleSheet.create({
   },
   reviewModal: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: palette.surface,
   },
 
   submitText: {
@@ -717,7 +738,7 @@ const styles = StyleSheet.create({
   rateLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#000000',
+    color: palette.navy,
     marginBottom: 12,
   },
   starRating: {
@@ -730,7 +751,7 @@ const styles = StyleSheet.create({
   reviewLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#000000',
+    color: palette.navy,
     marginBottom: 12,
   },
   reviewInput: {
@@ -740,13 +761,13 @@ const styles = StyleSheet.create({
     padding: 16,
     fontSize: 16,
     minHeight: 120,
-    backgroundColor: '#f8f8f8',
+    backgroundColor: palette.surfaceSubtle,
   },
   reviewsSection: {
     marginBottom: 32,
   },
   reviewItem: {
-    backgroundColor: '#f8f8f8',
+    backgroundColor: palette.surfaceSubtle,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -759,7 +780,7 @@ const styles = StyleSheet.create({
   reviewUserName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#000000',
+    color: palette.navy,
     marginRight: 12,
   },
   reviewStars: {
@@ -768,7 +789,7 @@ const styles = StyleSheet.create({
   },
   reviewDate: {
     fontSize: 12,
-    color: '#666666',
+    color: palette.textMuted,
   },
   reviewText: {
     fontSize: 14,
@@ -777,8 +798,24 @@ const styles = StyleSheet.create({
   },
   noInterestsText: {
     fontSize: 12,
-    color: '#999999',
+    color: palette.textSecondary,
     fontStyle: 'italic',
+  },
+  rateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fef3c7',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 16,
+  },
+  rateButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#92400e',
   },
 });
 
