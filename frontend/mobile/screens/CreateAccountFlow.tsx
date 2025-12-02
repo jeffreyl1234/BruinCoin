@@ -3,6 +3,7 @@ import CreateAccountScreen from './CreateAccountScreen';
 import PickProfilePictureScreen from './PickProfilePictureScreen';
 import EnterUsernameScreen from './EnterUsernameScreen';
 import AddBioScreen from './AddBioScreen';
+import AddInterestsScreen from './AddInterestsScreen';
 import AccountCreatedScreen from './AccountCreatedScreen';
 import PersonalizingScreen from './PersonalizingScreen';
 import InterestsStep1Screen from './InterestsStep1Screen';
@@ -16,7 +17,7 @@ interface CreateAccountFlowProps {
   onComplete: () => void;
 }
 
-type FlowStep = 'create-account' | 'pick-picture' | 'enter-username' | 'add-bio' | 'account-created' | 'personalizing' | 'interests-step1' | 'interests-step2';
+type FlowStep = 'create-account' | 'pick-picture' | 'enter-username' | 'add-bio' | 'add-interests' | 'account-created' | 'personalizing' | 'interests-step1' | 'interests-step2';
 
 export default function CreateAccountFlow({ onBack, onComplete }: CreateAccountFlowProps) {
   const [currentStep, setCurrentStep] = useState<FlowStep>('create-account');
@@ -25,6 +26,7 @@ export default function CreateAccountFlow({ onBack, onComplete }: CreateAccountF
   const [profileImageUri, setProfileImageUri] = useState<string | null>(null);
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
+  const [interests, setInterests] = useState<string[]>([]);
   const [tradePreferences, setTradePreferences] = useState<string[]>([]);
   const [categoryPreferences, setCategoryPreferences] = useState<string[]>([]);
 
@@ -48,6 +50,15 @@ export default function CreateAccountFlow({ onBack, onComplete }: CreateAccountF
 
   const handleAddBioNext = async (userBio: string) => {
     setBio(userBio);
+    setCurrentStep('add-interests');
+  };
+
+  const handleAddBioSkip = async () => {
+    await handleAddBioNext('');
+  };
+
+  const handleAddInterestsNext = async (userInterests: string[]) => {
+    setInterests(userInterests);
     
     // Update user profile with all collected information
     try {
@@ -102,7 +113,8 @@ export default function CreateAccountFlow({ onBack, onComplete }: CreateAccountF
         // Update user profile
         const updateData: any = {
           user_name: username,
-          bio: userBio || null,
+          bio: bio || null,
+          interests: userInterests.length > 0 ? userInterests : null,
         };
         
         if (profilePictureUrl) {
@@ -129,9 +141,10 @@ export default function CreateAccountFlow({ onBack, onComplete }: CreateAccountF
     setCurrentStep('account-created');
   };
 
-  const handleAddBioSkip = async () => {
-    await handleAddBioNext('');
+  const handleAddInterestsSkip = async () => {
+    await handleAddInterestsNext([]);
   };
+
 
   const handleAccountCreatedNext = () => {
     setCurrentStep('personalizing');
@@ -201,6 +214,8 @@ export default function CreateAccountFlow({ onBack, onComplete }: CreateAccountF
       setCurrentStep('pick-picture');
     } else if (currentStep === 'add-bio') {
       setCurrentStep('enter-username');
+    } else if (currentStep === 'add-interests') {
+      setCurrentStep('add-bio');
     } else if (currentStep === 'interests-step1') {
       setCurrentStep('account-created');
     } else if (currentStep === 'interests-step2') {
@@ -236,6 +251,14 @@ export default function CreateAccountFlow({ onBack, onComplete }: CreateAccountF
           onBack={handleBack}
           onNext={handleAddBioNext}
           onSkip={handleAddBioSkip}
+        />
+      );
+    case 'add-interests':
+      return (
+        <AddInterestsScreen
+          onBack={handleBack}
+          onNext={handleAddInterestsNext}
+          onSkip={handleAddInterestsSkip}
         />
       );
     case 'account-created':

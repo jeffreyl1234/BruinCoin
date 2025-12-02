@@ -6,6 +6,7 @@ import LoginScreen from './screens/LoginScreen';
 import WelcomeScreen from './screens/WelcomeScreen';
 import CreateAccountFlow from './screens/CreateAccountFlow';
 import WelcomeBackScreen from './screens/WelcomeBackScreen';
+import OnboardingFlow from './screens/OnboardingFlow';
 import HomeScreen from './screens/HomeScreen';
 import SearchScreen from './screens/SearchScreen';
 import ProfileScreen from './screens/ProfileScreen';
@@ -21,7 +22,7 @@ import Constants from 'expo-constants';
 
 
 type Screen = 'home' | 'search' | 'profile' | 'messages';
-type AuthScreen = 'welcome' | 'login' | 'create-account-flow';
+type AuthScreen = 'welcome' | 'login' | 'create-account-flow' | 'onboarding';
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -122,10 +123,23 @@ export default function App() {
                 return;
               }
 
-              // User exists in public.users - proceed with session restoration
-                // If user exists, they're logged in
+              // User exists in public.users - check if onboarding is complete
+              const userData = await userCheckResponse.json();
+              const onboardingComplete = user?.user_metadata?.onboarding_complete === true ||
+                                       user?.user_metadata?.onboarding_complete === 'true' ||
+                                       (userData.user && userData.user.user_name);
+              
+              if (onboardingComplete) {
+                // If user exists and onboarding is complete, they're logged in
                 setIsLoggedIn(true);
                 setAuthScreen('login');
+              } else {
+                // User exists but needs to complete onboarding
+                if (isMounted) {
+                  setIsLoggedIn(false);
+                  setAuthScreen('onboarding');
+                }
+              }
             } catch (error) {
               console.error('Failed to verify user in public.users:', error);
               // On error, sign out for safety
@@ -188,7 +202,18 @@ export default function App() {
           <WelcomeBackScreen 
             username={welcomeBackUsername}
           />
-        ) : (
+        ) : authScreen === 'onboarding' ? (
+          <OnboardingFlow
+            onComplete={() => {
+              setIsLoggedIn(true);
+              setAuthScreen('login');
+            }}
+            onExit={() => {
+              setIsLoggedIn(false);
+              setAuthScreen('welcome');
+            }}
+          />
+        ) : authScreen === 'login' ? (
           <LoginScreen 
             onLogin={({ username }) => {
               // Show welcome back screen for 1 second
@@ -197,8 +222,8 @@ export default function App() {
                 setShowWelcomeBack(true);
                 setTimeout(() => {
                   setShowWelcomeBack(false);
-                  setIsLoggedIn(true);
-                  setAuthScreen('login');
+                setIsLoggedIn(true);
+                setAuthScreen('login');
                 }, 1000);
               } else {
                 setIsLoggedIn(true);
