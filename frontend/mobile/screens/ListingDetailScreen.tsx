@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { supabase } from '../lib/supabaseClient';
 import ScreenHeader from '../components/ScreenHeader';
+import MakeAnOfferModal from './MakeAnOfferModal';
 
 interface Trade {
   id: string;
@@ -63,6 +64,8 @@ export default function ListingDetailScreen({
   const [userRating, setUserRating] = useState(0);
   const [reviews, setReviews] = useState<Array<{id: string, rating: number, text: string, userName: string, date: string}>>([]);
   const [sellerProfile, setSellerProfile] = useState<SellerProfile | null>(null);
+  const [showOfferModal, setShowOfferModal] = useState(false);
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
 
   const apiUrl = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:3001';
 
@@ -138,6 +141,42 @@ export default function ListingDetailScreen({
       return 'Looking for';
     }
     return '';
+  };
+
+  const handleMakeOffer = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const sellerId = trade?.offerer_user_id;
+      if (!sellerId || sellerId === user.id) return;
+
+      // Check if conversation exists
+      const { data: existingConversation } = await supabase
+        .from('conversations')
+        .select('id')
+        .or(`and(user1_id.eq.${user.id},user2_id.eq.${sellerId}),and(user1_id.eq.${sellerId},user2_id.eq.${user.id})`)
+        .limit(1)
+        .maybeSingle();
+
+      let conversationId = existingConversation?.id;
+
+      // If no conversation exists, create one
+      if (!conversationId) {
+        const { data: newConvo } = await supabase
+          .from('conversations')
+          .insert([{ user1_id: user.id, user2_id: sellerId }])
+          .select()
+          .single();
+
+        conversationId = newConvo?.id;
+      }
+
+      setCurrentConversationId(conversationId);
+      setShowOfferModal(true);
+    } catch (error) {
+      console.error('Error:', error);
+    }
   };
 
     const handleContactSeller = async () => {
@@ -399,15 +438,30 @@ export default function ListingDetailScreen({
         {/* Bottom Action Buttons */}
         {trade && (
           <View style={styles.bottomActions}>
-            <TouchableOpacity style={styles.contactButton}>
+            <TouchableOpacity style={styles.contactButton} onPress={handleContactSeller}>
               <Text style={styles.contactButtonText}>Contact Seller</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.offerButton} onPress={handleContactSeller}>
+            <TouchableOpacity style={styles.offerButton} onPress={handleMakeOffer}>
               <Text style={styles.offerButtonText}>Make an offer</Text>
             </TouchableOpacity>
           </View>
         )}
       </SafeAreaView>
+
+      {/* Make An Offer Modal */}
+      {trade && sellerProfile && currentConversationId && (
+        <MakeAnOfferModal
+          visible={showOfferModal}
+          onClose={() => {
+            setShowOfferModal(false);
+            setCurrentConversationId(null);
+          }}
+          trade={trade}
+          sellerProfile={sellerProfile}
+          currentConversationId={currentConversationId}
+          navigation={navigation}
+        />
+      )}
 
       <Modal visible={showReviewModal} animationType="slide" presentationStyle="pageSheet">
         <SafeAreaView style={styles.reviewModal}>

@@ -28,11 +28,12 @@ interface Trade {
 
 interface EditListingsScreenProps {
   onBack: () => void;
+  onListingDeleted?: () => void;
 }
 
 const { width: screenWidth } = Dimensions.get('window');
 
-export default function EditListingsScreen({ onBack }: EditListingsScreenProps) {
+export default function EditListingsScreen({ onBack, onListingDeleted }: EditListingsScreenProps) {
   const [userListings, setUserListings] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -79,6 +80,10 @@ export default function EditListingsScreen({ onBack }: EditListingsScreenProps) 
 
               if (response.ok) {
                 setUserListings(prev => prev.filter(listing => listing.id !== tradeId));
+                // Notify parent that a listing was deleted
+                if (onListingDeleted) {
+                  onListingDeleted();
+                }
               } else {
                 Alert.alert('Error', 'Failed to delete listing');
               }

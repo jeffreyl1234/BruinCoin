@@ -14,6 +14,9 @@ import ChatScreen from './screens/ChatScreen';
 import CreateListingScreen from './screens/CreateListingScreen';
 import SeeAllScreen from './screens/SeeAllScreen';
 import ListingDetailScreen from './screens/ListingDetailScreen';
+import EditListingsScreen from './screens/EditListingsScreen';
+import EditProfileScreen from './screens/EditProfileScreen';
+import SettingsScreen from './screens/SettingsScreen';
 import BottomNavigation from './components/BottomNavigation';
 import { supabase } from './lib/supabaseClient';
 import { NavigationContainer } from '@react-navigation/native';
@@ -40,6 +43,10 @@ export default function App() {
   const [viewingUserId, setViewingUserId] = useState<string | null>(null);
   const [showWelcomeBack, setShowWelcomeBack] = useState(false);
   const [welcomeBackUsername, setWelcomeBackUsername] = useState('');
+  const [showEditListings, setShowEditListings] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [profileRefreshTrigger, setProfileRefreshTrigger] = useState(0);
 
   const handleSeeAll = (type: 'new' | 'recommended' | 'all') => {
     setSeeAllType(type);
@@ -244,6 +251,10 @@ export default function App() {
             }}
             onLogout={() => setIsLoggedIn(false)}
             viewUserId={viewingUserId}
+            onTradePress={handleTradePress}
+            onEditListings={() => setShowEditListings(true)}
+            onSettings={() => setShowSettings(true)}
+            refreshTrigger={profileRefreshTrigger}
           />
         )}
         
@@ -315,6 +326,39 @@ export default function App() {
             },
           }}
         />
+
+        {/* Edit Listings Screen */}
+        {showEditListings && (
+          <EditListingsScreen
+            onBack={() => setShowEditListings(false)}
+            onListingDeleted={() => {
+              // Trigger ProfileScreen refresh
+              setProfileRefreshTrigger(prev => prev + 1);
+            }}
+          />
+        )}
+
+        {/* Edit Profile Screen */}
+        {showEditProfile && (
+          <EditProfileScreen
+            onBack={() => setShowEditProfile(false)}
+          />
+        )}
+
+        {/* Settings Screen */}
+        {showSettings && (
+          <SettingsScreen
+            onBack={() => setShowSettings(false)}
+            onEditProfile={() => {
+              setShowSettings(false);
+              setShowEditProfile(true);
+            }}
+            onLogout={() => {
+              setShowSettings(false);
+              setIsLoggedIn(false);
+            }}
+          />
+        )}
       </SafeAreaView>
     </NavigationContainer>
   );
