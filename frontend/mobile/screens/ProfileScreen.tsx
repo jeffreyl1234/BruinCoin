@@ -9,7 +9,6 @@ import {
   Alert,
   ActivityIndicator,
   Image,
-  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,17 +16,11 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '../lib/supabaseClient';
 import Constants from 'expo-constants';
-import { palette } from '../constants/theme';
-import TradeCard from '../components/TradeCard';
-import EditListingsScreen from './EditListingsScreen';
 
 interface ProfileScreenProps {
   onBack?: () => void;
   onLogout?: () => void;
   viewUserId?: string | null; // If provided, view this user's profile instead of current user's
-  onTradePress?: (tradeId: string) => void;
-  onEditListings?: () => void;
-  onSettings?: () => void;
 }
 
 interface User {
@@ -52,7 +45,7 @@ interface Trade {
   image_urls: string[] | null;
 }
 
-export default function ProfileScreen({ onBack, onLogout, viewUserId, onTradePress, onEditListings, onSettings }: ProfileScreenProps) {
+export default function ProfileScreen({ onBack, onLogout, viewUserId }: ProfileScreenProps) {
   const [user, setUser] = useState<User | null>(null);
   const [userListings, setUserListings] = useState<Trade[]>([]);
   const [tradePreferences, setTradePreferences] = useState<string[]>([]);
@@ -68,7 +61,6 @@ export default function ProfileScreen({ onBack, onLogout, viewUserId, onTradePre
   const [editingBio, setEditingBio] = useState('');
   const [profileImageUri, setProfileImageUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [userReviews, setUserReviews] = useState<any[]>([]);
 
   const apiUrl = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:3001';
 
@@ -238,21 +230,6 @@ export default function ProfileScreen({ onBack, onLogout, viewUserId, onTradePre
         console.error('Failed to fetch listings:', listingsResponse.status, listingsResponse.statusText);
       }
 
-      // Fetch user's reviews
-      try {
-        const reviewsResponse = await fetch(`${apiUrl}/api/ratings?rated_user_id=${targetUserId}`);
-        if (reviewsResponse.ok) {
-          const reviewsData = await reviewsResponse.json();
-          if (reviewsData.ratings) {
-            setUserReviews(reviewsData.ratings);
-          }
-        } else if (reviewsResponse.status !== 404) {
-          console.error('Failed to fetch reviews:', reviewsResponse.status, reviewsResponse.statusText);
-        }
-      } catch (error) {
-        // Silently handle reviews fetch errors
-      }
-
       const combinedTradePrefs = metadataTradePrefs.length > 0 ? metadataTradePrefs : dbTradePrefs;
       const combinedCategoryPrefs = metadataCategoryPrefs.length > 0 ? metadataCategoryPrefs : dbCategoryPrefs;
       const combinedInterests = metadataInterests.length > 0 ? metadataInterests : dbInterests;
@@ -351,10 +328,10 @@ export default function ProfileScreen({ onBack, onLogout, viewUserId, onTradePre
     }
 
     return (
-      <View style={styles.lookingForContainer}>
+      <View style={styles.tagsContainer}>
         {items.map((item, index) => (
-          <View key={`${item}-${index}`} style={styles.lookingForItem}>
-            <Text style={styles.lookingForText}>{item}</Text>
+          <View key={`${item}-${index}`} style={styles.tag}>
+            <Text style={styles.tagText}>{item}</Text>
           </View>
         ))}
       </View>
@@ -368,7 +345,6 @@ export default function ProfileScreen({ onBack, onLogout, viewUserId, onTradePre
   const emailToShow = emailAddress || user?.email || '';
   const displayNameLabel = getDisplayName();
   const profileInitial = displayNameLabel.trim().charAt(0).toUpperCase() || 'B';
-  const { width: screenWidth } = Dimensions.get('window');
 
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure you want to log out?", [
@@ -573,224 +549,215 @@ export default function ProfileScreen({ onBack, onLogout, viewUserId, onTradePre
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={28} color={palette.navy} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Profile</Text>
-        <TouchableOpacity style={styles.menuButton} onPress={onSettings}>
-          <Ionicons name="menu" size={28} color={palette.navy} />
-        </TouchableOpacity>
-      </View>
-
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* Navigation Bar */}
+        <View style={styles.navBar}>
+          <TouchableOpacity onPress={onBack} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color="#6b7280" />
+          </TouchableOpacity>
+          <View style={styles.searchBar}>
+            <Ionicons name="search" size={20} color="#9ca3af" />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search"
+              placeholderTextColor="#9ca3af"
+              editable={false}
+            />
+          </View>
+          <View style={styles.usernameTag}>
+            <Text style={styles.usernameText}>{getUsername()}</Text>
+          </View>
+          {!viewUserId && (
+            !isEditing ? (
+              <TouchableOpacity onPress={handleEdit} style={styles.editButton}>
+                <Ionicons name="create-outline" size={20} color="#3b82f6" />
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.editActions}>
+                <TouchableOpacity onPress={handleCancel} style={styles.cancelButton}>
+                  <Ionicons name="close" size={20} color="#ef4444" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleSave} style={styles.saveButton} disabled={saving}>
+                  {saving ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <Ionicons name="checkmark" size={20} color="#ffffff" />
+                  )}
+                </TouchableOpacity>
+              </View>
+            )
+          )}
+        </View>
+
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={palette.blueBright} />
+            <ActivityIndicator size="large" color="#2563eb" />
           </View>
         ) : (
           <>
-            {/* Profile Header */}
-            <View style={styles.profileHeader}>
-              <TouchableOpacity
-                onPress={!viewUserId && isEditing ? pickProfileImage : undefined}
-                disabled={!isEditing}
-                style={styles.profileImageContainer}
-              >
-                <View style={styles.profileImage}>
-                  {profileImageUri ? (
-                    <Image
-                      source={{ uri: profileImageUri }}
-                      style={styles.profileImagePhoto}
+        {/* Profile Information */}
+        <View style={styles.profileSection}>
+          <View style={styles.profileImageContainer}>
+                <TouchableOpacity
+                  onPress={!viewUserId && isEditing ? pickProfileImage : undefined}
+                  disabled={!isEditing}
+                  style={styles.profileImageTouchable}
+                >
+            <View style={styles.profileImage}>
+                    {profileImageUri ? (
+                      <Image
+                        source={{ uri: profileImageUri }}
+                        style={styles.profileImagePhoto}
+                      />
+                    ) : (
+                      <View style={styles.profileImagePlaceholder}>
+                        <Text style={styles.profileImageInitial}>
+                          {profileInitial}
+                        </Text>
+                      </View>
+                    )}
+                    {isEditing && (
+                      <View style={styles.profileImageOverlay}>
+                        <Ionicons name="camera" size={24} color="#ffffff" />
+                      </View>
+                    )}
+            </View>
+                </TouchableOpacity>
+          </View>
+
+          <View style={styles.profileInfo}>
+            <View style={styles.nameRow}>
+                  {isEditing ? (
+                    <TextInput
+                      style={styles.nameInput}
+                      value={editingName}
+                      onChangeText={setEditingName}
+                      placeholder="Enter your name"
+                      placeholderTextColor="#9ca3af"
                     />
                   ) : (
-                    <View style={styles.profileImagePlaceholder}>
-                      <Text style={styles.profileImageInitial}>
-                        {profileInitial}
-                      </Text>
-                    </View>
+                    <Text style={styles.profileName}>{displayNameLabel}</Text>
                   )}
-                  {isEditing && (
-                    <View style={styles.profileImageOverlay}>
-                      <Ionicons name="camera" size={24} color={palette.surface} />
-                    </View>
-                  )}
-                </View>
-              </TouchableOpacity>
-              
-              <View style={styles.profileInfo}>
-                {isEditing ? (
-                  <TextInput
-                    style={styles.nameInput}
-                    value={editingName}
-                    onChangeText={setEditingName}
-                    placeholder="Enter your name"
-                    placeholderTextColor={palette.textSecondary}
-                  />
-                ) : (
-                  <Text style={styles.profileName}>{displayNameLabel}</Text>
-                )}
-                
-                <View style={styles.ratingContainer}>
-                  {[...Array(5)].map((_, i) => {
-                    const avgRating = userReviews.length > 0 
-                      ? userReviews.reduce((sum, review) => sum + review.rating, 0) / userReviews.length
-                      : 0;
-                    const filled = i < Math.floor(avgRating);
-                    return (
-                      <Ionicons
-                        key={i}
-                        name="star"
-                        size={16}
-                        color={filled ? palette.blueBright : palette.neutralLight}
-                        style={styles.ratingStar}
-                      />
-                    );
-                  })}
-                </View>
-              </View>
-              
-              {!viewUserId && (
-                !isEditing ? (
-                  <TouchableOpacity onPress={handleEdit} style={styles.editButton}>
-                    <Ionicons name="create-outline" size={20} color={palette.blueBright} />
-                  </TouchableOpacity>
-                ) : (
-                  <View style={styles.editActions}>
-                    <TouchableOpacity onPress={handleCancel} style={styles.cancelButton}>
-                      <Ionicons name="close" size={20} color="#ef4444" />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={handleSave} style={styles.saveButton} disabled={saving}>
-                      {saving ? (
-                        <ActivityIndicator size="small" color={palette.surface} />
-                      ) : (
-                        <Ionicons name="checkmark" size={20} color={palette.surface} />
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                )
-              )}
-            </View>
-
-            {/* About Section */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>About</Text>
-              {isEditing ? (
-                <TextInput
-                  style={styles.bioInput}
-                  value={editingBio}
-                  onChangeText={setEditingBio}
-                  placeholder="Lorem ipsum dolor sit amet, consectetur adipiscing elit..."
-                  placeholderTextColor="#9ca3af"
-                  multiline
-                  numberOfLines={4}
-                  textAlignVertical="top"
-                />
-              ) : (
-                <Text style={styles.bioText}>
-                  {profileBio || 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Duis aliquet nibh ipsum, nec varius mauris finibus ut. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Duis aliquet nibh ipsum, nec varius mauris finibus ut.'}
-                </Text>
-              )}
-            </View>
-
-            {/* Looking for Section */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Looking for</Text>
-              {renderChipGroup(
-                normalizedInterests,
-                'Add a few interests to help Bruins get to know you.'
-              )}
-            </View>
-
-            {/* Listings Section */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Listings</Text>
-                <TouchableOpacity 
-                  style={styles.editListingsButton}
-                  onPress={onEditListings}
-                >
-                  <Text style={styles.editListingsText}>Edit Listings</Text>
+                  {!isEditing && (
+                <TouchableOpacity style={styles.messageButton}>
+                  <Ionicons name="mail-outline" size={24} color="#3b82f6" />
                 </TouchableOpacity>
-              </View>
-              
-              <View style={styles.listingsGrid}>
-                {userListings.length > 0 ? (
-                  userListings.map((listing) => (
-                    <TradeCard
-                      key={listing.id}
-                      trade={listing}
-                      onPress={onTradePress || (() => {})}
-                      width={(screenWidth - 60) / 2}
-                    />
-                  ))
-                ) : (
-                  // Default nail art listings for demo
-                  <>
-                    <TradeCard
-                      trade={{
-                        id: 'demo-1',
-                        title: 'Press-on Nails',
-                        price: null,
-                        trade_options: 'Sell',
-                        category: 'Beauty',
-                        image_urls: null,
-                      }}
-                      onPress={onTradePress || (() => {})}
-                      width={(screenWidth - 60) / 2}
-                    />
-                    <TradeCard
-                      trade={{
-                        id: 'demo-2',
-                        title: 'Gel-X Nails',
-                        price: null,
-                        trade_options: 'Sell',
-                        category: 'Beauty',
-                        image_urls: null,
-                      }}
-                      onPress={onTradePress || (() => {})}
-                      width={(screenWidth - 60) / 2}
-                    />
-                  </>
-                )}
-              </View>
+                  )}
             </View>
 
-            {/* Reviews Section */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Reviews</Text>
-              {userReviews.length > 0 ? (
-                userReviews.map((review, index) => (
-                  <View key={index} style={styles.reviewItem}>
-                    <Text style={styles.reviewerName}>
-                      {review.rater_name || 'Anonymous User'}
-                    </Text>
-                    <View style={styles.reviewRating}>
-                      {[...Array(5)].map((_, i) => (
-                        <Ionicons
-                          key={i}
-                          name="star"
-                          size={14}
-                          color={i < review.rating ? "#3b82f6" : "#e5e7eb"}
-                          style={styles.reviewStar}
-                        />
-                      ))}
-                    </View>
+            {!!emailToShow && (
+              <Text style={styles.profileEmail}>{emailToShow}</Text>
+            )}
+
+            {!isEditing && quickTradePreview.length > 0 && (
+              <View style={styles.quickTagsRow}>
+                {quickTradePreview.map((item, index) => (
+                  <View key={`${item}-${index}`} style={styles.quickTag}>
+                    <Text style={styles.quickTagText}>{item}</Text>
                   </View>
-                ))
-              ) : (
-                <Text style={styles.emptyText}>No reviews yet</Text>
-              )}
+                ))}
+                {normalizedTradePreferences.length > quickTradePreview.length && (
+                  <View style={styles.quickTag}>
+                    <Text style={styles.quickTagText}>
+                      +{normalizedTradePreferences.length - quickTradePreview.length}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {!isEditing && (
+              <View style={styles.ratingContainer}>
+                {[...Array(5)].map((_, i) => {
+                  const rating = user?.rating || 0;
+                  const filled = i < Math.floor(rating);
+                  return (
+                    <View key={i} style={i > 0 ? styles.ratingStarSpacing : undefined}>
+                      <Ionicons
+                        name="star"
+                        size={20}
+                        color={filled ? "#3b82f6" : "#e5e7eb"}
+                      />
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* About Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>About</Text>
+          {isEditing ? (
+            <TextInput
+              style={styles.bioInput}
+              value={editingBio}
+              onChangeText={setEditingBio}
+              placeholder="Tell us about yourself..."
+              placeholderTextColor="#9ca3af"
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+          ) : (
+            <Text style={styles.bioText}>
+              {profileBio ? profileBio : 'No bio yet'}
+            </Text>
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Interests</Text>
+          {renderChipGroup(
+            normalizedInterests,
+            'Add a few interests to help Bruins get to know you.'
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Trade Preferences</Text>
+          {renderChipGroup(
+            normalizedTradePreferences,
+            'Choose if you are here to buy, sell, or trade.'
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Focus Categories</Text>
+          {renderChipGroup(
+            normalizedFocusCategories,
+            'Pick categories you want to see more of.'
+          )}
+        </View>
+
+        {/* Listings Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Listings</Text>
+          {userListings.length > 0 ? (
+            <View style={styles.listingsGrid}>
+              {userListings.map((listing) => (
+                <View key={listing.id} style={styles.listingCard}>
+                  <View style={styles.listingImage} />
+                  <Text style={styles.listingTitle} numberOfLines={2}>{listing.title}</Text>
+                  <View style={styles.listingStatusContainer}>
+                    <View style={styles.listingStatusDot} />
+                    <Text style={styles.listingStatusText}>{formatPrice(listing)}</Text>
+                  </View>
+                </View>
+              ))}
             </View>
+          ) : (
+            <Text style={styles.emptyText}>No listings yet</Text>
+          )}
+        </View>
           </>
         )}
-        
         {!viewUserId && (
           <View style={styles.logoutContainer}>
             <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
@@ -807,27 +774,7 @@ export default function ProfileScreen({ onBack, onLogout, viewUserId, onTradePre
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: palette.surface,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
-    backgroundColor: palette.surface,
-  },
-  backButton: {
-    padding: 4,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: palette.navy,
-  },
-  menuButton: {
-    padding: 4,
+    backgroundColor: '#f3f4f6',
   },
   scrollView: {
     flex: 1,
@@ -835,25 +782,90 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 48,
   },
-  loadingContainer: {
-    paddingVertical: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  profileHeader: {
+  navBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 24,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    backgroundColor: '#ffffff',
+  },
+  backButton: {
+    marginRight: 12,
+    padding: 8,
+  },
+  searchBar: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f3f4f6',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 40,
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#1f2937',
+  },
+  usernameTag: {
+    backgroundColor: '#e5e7eb',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  usernameText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  editButton: {
+    marginLeft: 8,
+    padding: 4,
+  },
+  editActions: {
+    flexDirection: 'row',
+    marginLeft: 8,
+  },
+  cancelButton: {
+    padding: 4,
+  },
+  saveButton: {
+    backgroundColor: '#3b82f6',
+    borderRadius: 8,
+    padding: 4,
+    paddingHorizontal: 8,
+  },
+  profileSection: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+    backgroundColor: '#ffffff',
+    marginTop: 8,
+    marginHorizontal: 12,
+    borderRadius: 18,
+    shadowColor: '#000000',
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+    elevation: 3,
   },
   profileImageContainer: {
-    marginRight: 20,
+    marginRight: 16,
+  },
+  profileImageTouchable: {
+    width: 110,
+    height: 110,
   },
   profileImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#a5b4fc',
+    width: '100%',
+    height: '100%',
+    borderRadius: 55,
+    backgroundColor: '#e2e8f0',
+    borderWidth: 3,
+    borderColor: '#2563eb',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -867,12 +879,10 @@ const styles = StyleSheet.create({
     height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  profileImageEmoji: {
-    fontSize: 32,
+    backgroundColor: '#dbeafe',
   },
   profileImageInitial: {
-    fontSize: 32,
+    fontSize: 40,
     fontWeight: '700',
     color: '#1d4ed8',
   },
@@ -883,149 +893,174 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 40,
+    borderRadius: 55,
     alignItems: 'center',
     justifyContent: 'center',
   },
   profileInfo: {
     flex: 1,
+    justifyContent: 'center',
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
   },
   profileName: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: palette.navy,
-    marginBottom: 8,
+    color: '#1f2937',
+  },
+  profileEmail: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 4,
   },
   nameInput: {
+    flex: 1,
     fontSize: 24,
     fontWeight: 'bold',
-    color: palette.navy,
+    color: '#1f2937',
     borderBottomWidth: 1,
     borderBottomColor: '#3b82f6',
     paddingBottom: 4,
-    marginBottom: 8,
+  },
+  messageButton: {
+    padding: 4,
   },
   ratingContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
   },
-  ratingStar: {
-    marginRight: 2,
+  ratingStarSpacing: {
+    marginLeft: 2,
   },
-  editButton: {
-    padding: 8,
-  },
-  editActions: {
+  quickTagsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    flexWrap: 'wrap',
+    marginTop: 12,
+    marginHorizontal: -4,
   },
-  cancelButton: {
-    padding: 8,
-    marginRight: 8,
-  },
-  saveButton: {
-    backgroundColor: '#3b82f6',
-    borderRadius: 8,
-    padding: 8,
+  quickTag: {
+    backgroundColor: '#dbeafe',
     paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    marginHorizontal: 4,
+    marginBottom: 8,
+  },
+  quickTagText: {
+    fontSize: 12,
+    color: '#1d4ed8',
+    fontWeight: '600',
   },
   section: {
-    paddingHorizontal: 20,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 16,
     paddingVertical: 20,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
+    marginTop: 8,
+    marginHorizontal: 12,
+    borderRadius: 16,
+    shadowColor: '#000000',
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+    elevation: 3,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: palette.navy,
-    marginBottom: 16,
+    color: '#1f2937',
+    marginBottom: 12,
   },
   bioText: {
     fontSize: 14,
-    color: '#666666',
-    lineHeight: 20,
+    color: '#1f2937',
+    lineHeight: 22,
   },
   bioInput: {
     fontSize: 14,
-    color: palette.navy,
+    color: '#1f2937',
     lineHeight: 20,
     borderWidth: 1,
     borderColor: '#d1d5db',
     borderRadius: 8,
     padding: 12,
     minHeight: 100,
-    backgroundColor: palette.surface,
+    backgroundColor: '#ffffff',
   },
-  lookingForContainer: {
+  loadingContainer: {
+    paddingVertical: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#9ca3af',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingVertical: 20,
+  },
+  tagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    marginHorizontal: -6,
   },
-  lookingForItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-    borderRadius: 20,
-    paddingHorizontal: 12,
+  tag: {
+    backgroundColor: '#e0f2fe',
+    borderRadius: 18,
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    marginRight: 12,
-    marginBottom: 8,
+    marginHorizontal: 6,
+    marginBottom: 10,
   },
-  lookingForEmoji: {
-    fontSize: 16,
-    marginRight: 6,
-  },
-  lookingForText: {
+  tagText: {
     fontSize: 14,
-    color: palette.navy,
-    fontWeight: '500',
-  },
-  editListingsButton: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  editListingsText: {
-    fontSize: 14,
-    color: '#666666',
-    fontWeight: '500',
+    color: '#0f172a',
+    fontWeight: '600',
   },
   listingsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
   },
-  reviewItem: {
+  listingCard: {
+    width: '47%',
+    marginBottom: 16,
+  },
+  listingImage: {
+    width: '100%',
+    height: 160,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  listingTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  listingStatusContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
   },
-  reviewerName: {
-    fontSize: 16,
-    color: '#666666',
-    fontWeight: '500',
+  listingStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#9ca3af',
+    marginRight: 6,
   },
-  reviewRating: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  reviewStar: {
-    marginLeft: 2,
+  listingStatusText: {
+    fontSize: 12,
+    color: '#6b7280',
   },
   logoutContainer: {
     alignItems: 'stretch',
     marginTop: 24,
     marginBottom: 40,
-    marginHorizontal: 20,
+    marginHorizontal: 12,
   },
   logoutButton: {
     flexDirection: 'row',
@@ -1041,13 +1076,6 @@ const styles = StyleSheet.create({
     color: '#ef4444',
     fontSize: 16,
     fontWeight: '600',
-  },
-  emptyText: {
-    fontSize: 14,
-    color: palette.textSecondary,
-    fontStyle: 'italic',
-    textAlign: 'center',
-    paddingVertical: 20,
   },
 });
 

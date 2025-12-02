@@ -14,17 +14,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabaseClient';
 import Constants from 'expo-constants';
 
-type ImageItem = 
-  | { type: 'image'; uri: string }
-  | { type: 'icon'; emoji: string; backgroundColor: string };
-
 export interface ListingData {
   title: string;
   description: string;
   price: string;
   category: string;
   selectedOption: string | null;
-  images?: ImageItem[];
+  images?: string[];
   tags?: string[];
 }
 
@@ -114,23 +110,17 @@ export default function PreviewListingScreen({
     <Modal visible={visible} animationType="none" presentationStyle="overFullScreen">
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          {/* Unified Card Container */}
-          <View style={styles.unifiedCard}>
-            {/* Navigation Bar */}
-            <View style={styles.navBar}>
-              <TouchableOpacity 
-                onPress={onClose} 
-                style={styles.backButton}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              >
-                <Ionicons name="arrow-back" size={24} color="#6b7280" />
-              </TouchableOpacity>
-              <Text style={styles.navTitle}>Preview Listing</Text>
-              <View style={styles.navSpacer} />
-            </View>
+          {/* Navigation Bar */}
+          <View style={styles.navBar}>
+            <TouchableOpacity onPress={onClose} style={styles.backButton}>
+              <Ionicons name="arrow-back" size={24} color="#6b7280" />
+            </TouchableOpacity>
+            <Text style={styles.navTitle}>Preview Listing</Text>
+            <View style={styles.navSpacer} />
+          </View>
 
-            {/* Main Content */}
-            <View style={styles.contentCard}>
+          {/* Main Content Card */}
+          <View style={styles.contentCard}>
             {/* Title Section */}
             <View style={styles.titleSection}>
               <View style={styles.titleLeft}>
@@ -165,19 +155,13 @@ export default function PreviewListingScreen({
               contentContainerStyle={styles.imagesContent}
             >
               {listingData.images && listingData.images.length > 0 ? (
-                listingData.images.map((item, index) => (
-                  item.type === 'icon' ? (
-                    <View key={index} style={[styles.image, { backgroundColor: item.backgroundColor, alignItems: 'center', justifyContent: 'center' }]}>
-                      <Text style={styles.previewIconEmoji}>{item.emoji}</Text>
-                    </View>
-                  ) : (
-                    <Image
-                      key={index}
-                      source={{ uri: item.uri }}
-                      style={styles.image}
-                      resizeMode="cover"
-                    />
-                  )
+                listingData.images.map((uri, index) => (
+                  <Image
+                    key={index}
+                    source={{ uri }}
+                    style={styles.image}
+                    resizeMode="cover"
+                  />
                 ))
               ) : (
                 <>
@@ -273,7 +257,6 @@ export default function PreviewListingScreen({
                 <Text style={styles.continueButtonText}>Continue</Text>
               )}
             </TouchableOpacity>
-            </View>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -289,25 +272,15 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  unifiedCard: {
-    backgroundColor: '#ffffff',
-    marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 16,
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
   navBar: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
+    paddingVertical: 12,
     backgroundColor: '#ffffff',
   },
   backButton: {
     marginRight: 12,
-    padding: 8,
   },
   navTitle: {
     flex: 1,
@@ -321,8 +294,9 @@ const styles = StyleSheet.create({
   },
   contentCard: {
     backgroundColor: '#ffffff',
+    margin: 16,
+    borderRadius: 12,
     padding: 16,
-    paddingTop: 0,
   },
   titleSection: {
     flexDirection: 'row',
@@ -392,9 +366,6 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 12,
     marginRight: 12,
-  },
-  previewIconEmoji: {
-    fontSize: 80,
   },
   imagePlaceholder: {
     width: 300,

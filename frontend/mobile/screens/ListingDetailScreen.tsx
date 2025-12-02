@@ -15,9 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { supabase } from '../lib/supabaseClient';
-import { palette } from '../constants/theme';
-import RateUserScreen from './RateUserScreen';
-import MakeAnOfferModal from './MakeAnOfferModal';
+import ScreenHeader from '../components/ScreenHeader';
 
 interface Trade {
   id: string;
@@ -65,26 +63,8 @@ export default function ListingDetailScreen({
   const [userRating, setUserRating] = useState(0);
   const [reviews, setReviews] = useState<Array<{id: string, rating: number, text: string, userName: string, date: string}>>([]);
   const [sellerProfile, setSellerProfile] = useState<SellerProfile | null>(null);
-  const [showOfferModal, setShowOfferModal] = useState(false);
-  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [showRatingModal, setShowRatingModal] = useState(false);
 
   const apiUrl = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:3001';
-
-  useEffect(() => {
-    const fetchCurrentUser = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          setCurrentUserId(user.id);
-        }
-      } catch (error) {
-        console.error('Failed to get current user:', error);
-      }
-    };
-    fetchCurrentUser();
-  }, []);
 
   useEffect(() => {
     if (visible && tradeId) {
@@ -159,48 +139,6 @@ export default function ListingDetailScreen({
     }
     return '';
   };
-
-  // Create sellerInfo from sellerProfile and trade
-  const sellerInfo = trade && sellerProfile ? {
-    id: trade.offerer_user_id,
-    name: sellerProfile.user_name || sellerProfile.email?.split('@')[0] || 'Seller'
-  } : null;
-
-  const handleMakeOffer = async () => {
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const sellerId = trade?.offerer_user_id;
-    if (!sellerId || sellerId === user.id) return;
-
-    // Check if conversation exists
-    const { data: existingConversation } = await supabase
-      .from('conversations')
-      .select('id')
-      .or(`and(user1_id.eq.${user.id},user2_id.eq.${sellerId}),and(user1_id.eq.${sellerId},user2_id.eq.${user.id})`)
-      .limit(1)
-      .maybeSingle();
-
-    let conversationId = existingConversation?.id;
-
-    // If no conversation exists, create one
-    if (!conversationId) {
-      const { data: newConvo } = await supabase
-        .from('conversations')
-        .insert([{ user1_id: user.id, user2_id: sellerId }])
-        .select()
-        .single();
-
-      conversationId = newConvo?.id;
-    }
-
-    setCurrentConversationId(conversationId);
-    setShowOfferModal(true);
-  } catch (error) {
-    console.error('Error:', error);
-  }
-};
 
     const handleContactSeller = async () => {
     try {
@@ -284,7 +222,7 @@ export default function ListingDetailScreen({
 
   return (
     <Modal visible={visible} animationType="none" presentationStyle="overFullScreen">
-      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.container} edges={['top']}>
         {/* Header with back button */}
         <View style={styles.header}>
           <TouchableOpacity
@@ -292,14 +230,14 @@ export default function ListingDetailScreen({
             style={styles.backButton}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
-            <Ionicons name="chevron-back" size={28} color={palette.textMuted} />
+            <Ionicons name="chevron-back" size={28} color="#666" />
           </TouchableOpacity>
         </View>
 
         <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
           {loading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={palette.blueBright} />
+              <ActivityIndicator size="large" color="#2563eb" />
             </View>
           ) : trade ? (
             <>
@@ -317,10 +255,10 @@ export default function ListingDetailScreen({
                 ) : (
                   <>
                     <View style={styles.imagePlaceholder}>
-                      <Ionicons name="image-outline" size={48} color={palette.textSecondary} />
+                      <Ionicons name="image-outline" size={48} color="#9ca3af" />
                     </View>
                     <View style={[styles.imagePlaceholder, { marginLeft: 12 }]}>
-                      <Ionicons name="image-outline" size={48} color={palette.textSecondary} />
+                      <Ionicons name="image-outline" size={48} color="#9ca3af" />
                     </View>
                   </>
                 )}
@@ -338,7 +276,7 @@ export default function ListingDetailScreen({
                           key={star} 
                           name="star" 
                           size={16} 
-                          color={star <= averageRating ? "#FFD700" : palette.neutralLight} 
+                          color={star <= averageRating ? "#FFD700" : "#e5e5e5"} 
                         />
                       ))}
                     </View>
@@ -389,7 +327,7 @@ export default function ListingDetailScreen({
                           style={styles.sellerAvatarImage}
                         />
                       ) : (
-                        <Ionicons name="person" size={24} color={palette.textSecondary} />
+                        <Ionicons name="person" size={24} color="#9ca3af" />
                       )}
                     </View>
                     <View style={styles.sellerDetails}>
@@ -420,29 +358,35 @@ export default function ListingDetailScreen({
                   </TouchableOpacity>
                 </View>
 
-                {/* Rate Seller Button - Only show if viewing someone else's listing */}
-                {sellerInfo && currentUserId && sellerInfo.id !== currentUserId && (
-                  <TouchableOpacity
-                    style={styles.rateButton}
-                    onPress={() => setShowRatingModal(true)}
-                  >
-                    <Ionicons name="star-outline" size={20} color="#fbbf24" />
-                    <Text style={[styles.rateButtonText, { marginLeft: 8 }]}>Rate Seller</Text>
-                  </TouchableOpacity>
+                {/* Reviews Section */}
+                {reviews.length > 0 && (
+                  <View style={styles.reviewsSection}>
+                    <Text style={styles.sectionTitle}>Reviews</Text>
+                    {reviews.map((review) => (
+                      <View key={review.id} style={styles.reviewItem}>
+                        <View style={styles.reviewHeader}>
+                          <Text style={styles.reviewUserName}>{review.userName}</Text>
+                          <View style={styles.reviewStars}>
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <Ionicons 
+                                key={star} 
+                                name="star" 
+                                size={12} 
+                                color={star <= review.rating ? "#FFD700" : "#e5e5e5"} 
+                              />
+                            ))}
+                          </View>
+                          <Text style={styles.reviewDate}>{review.date}</Text>
+                        </View>
+                        {review.text ? (
+                          <Text style={styles.reviewText}>{review.text}</Text>
+                        ) : null}
+                      </View>
+                    ))}
+                  </View>
                 )}
 
-                {/* Action Buttons */}
-                <View style={styles.bottomActions}>
-                  <TouchableOpacity style={styles.contactButton} onPress={handleContactSeller}>
-                    <Text style={styles.contactButtonText}>Contact Seller</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={styles.offerButton}
-                    onPress={handleMakeOffer}
-                  >
-                    <Text style={styles.offerButtonText}>Make an Offer</Text>
-                  </TouchableOpacity>
-                </View>
+
               </View>
             </>
           ) : (
@@ -452,50 +396,74 @@ export default function ListingDetailScreen({
           )}
         </ScrollView>
 
-          {/* Rating Modal */}
-          {sellerInfo && (
-            <RateUserScreen
-              visible={showRatingModal}
-              ratedUserId={sellerInfo.id}
-              ratedUserName={sellerInfo.name}
-              onClose={() => setShowRatingModal(false)}
-              onRated={() => {
-                // Refresh seller profile to show updated rating
-                if (trade?.offerer_user_id) {
-                  fetchSellerProfile(trade.offerer_user_id);
-                }
-              }}
+        {/* Bottom Action Buttons */}
+        {trade && (
+          <View style={styles.bottomActions}>
+            <TouchableOpacity style={styles.contactButton}>
+              <Text style={styles.contactButtonText}>Contact Seller</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.offerButton} onPress={handleContactSeller}>
+              <Text style={styles.offerButtonText}>Make an offer</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </SafeAreaView>
+
+      <Modal visible={showReviewModal} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.reviewModal}>
+          <ScreenHeader 
+            title="Write a Review" 
+            onBack={() => setShowReviewModal(false)}
+            rightElement={
+              <TouchableOpacity onPress={handleSubmitReview}>
+                <Text style={styles.submitText} numberOfLines={1}>Submit</Text>
+              </TouchableOpacity>
+            }
+          />
+          
+          <View style={styles.reviewContent}>
+            <Text style={styles.rateLabel}>Rate this listing:</Text>
+            <View style={styles.starRating}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <TouchableOpacity key={star} onPress={() => setUserRating(star)}>
+                  <Ionicons 
+                    name="star" 
+                    size={32} 
+                    color={star <= userRating ? "#FFD700" : "#e5e5e5"} 
+                    style={styles.ratingStar}
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+            
+            <Text style={styles.reviewLabel}>Your review:</Text>
+            <TextInput
+              style={styles.reviewInput}
+              placeholder="Share your experience with this listing..."
+              multiline
+              numberOfLines={4}
+              value={reviewText}
+              onChangeText={setReviewText}
+              textAlignVertical="top"
             />
-          )}
-          {trade && sellerProfile && currentConversationId && (
-            <MakeAnOfferModal
-              visible={showOfferModal}
-              onClose={() => {
-                setShowOfferModal(false);
-                setCurrentConversationId(null);
-              }}
-              trade={trade}
-              sellerProfile={sellerProfile}
-              currentConversationId={currentConversationId}
-              navigation={navigation}
-            />
-          )}
+          </View>
         </SafeAreaView>
       </Modal>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: palette.surfaceSubtle,
+    backgroundColor: '#f0f0f0',
   },
 
   header: {
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 8,
-    backgroundColor: palette.surfaceSubtle,
+    paddingTop: 14,
+    paddingBottom: 10,
+    backgroundColor: '#f0f0f0',
   },
   backButton: {
     width: 40,
@@ -524,13 +492,13 @@ const styles = StyleSheet.create({
   imagePlaceholder: {
     flex: 1,
     height: 280,
-    backgroundColor: palette.neutralLight,
+    backgroundColor: '#e5e5e5',
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   contentCard: {
-    backgroundColor: palette.surface,
+    backgroundColor: '#ffffff',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
@@ -543,7 +511,7 @@ const styles = StyleSheet.create({
   titleText: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: palette.navy,
+    color: '#000000',
     marginBottom: 12,
     paddingRight: 80,
   },
@@ -558,7 +526,7 @@ const styles = StyleSheet.create({
   },
   ratingText: {
     fontSize: 16,
-    color: palette.textMuted,
+    color: '#666666',
   },
   priceContainer: {
     flexDirection: 'row',
@@ -577,7 +545,7 @@ const styles = StyleSheet.create({
   priceText: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: palette.navy,
+    color: '#000000',
   },
   descriptionSection: {
     marginBottom: 32,
@@ -585,7 +553,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: palette.navy,
+    color: '#000000',
     marginBottom: 16,
   },
   bulletPoints: {
@@ -597,13 +565,13 @@ const styles = StyleSheet.create({
   },
   bullet: {
     fontSize: 16,
-    color: palette.textSecondary,
+    color: '#999999',
     marginRight: 12,
     width: 16,
   },
   bulletText: {
     fontSize: 16,
-    color: palette.textSecondary,
+    color: '#999999',
     flex: 1,
     lineHeight: 22,
   },
@@ -618,7 +586,7 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: palette.surfaceSubtle,
+    backgroundColor: '#f0f0f0',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
@@ -634,7 +602,7 @@ const styles = StyleSheet.create({
   sellerName: {
     fontSize: 18,
     fontWeight: '600',
-    color: palette.navy,
+    color: '#000000',
     marginBottom: 4,
   },
   sellerRating: {
@@ -643,7 +611,7 @@ const styles = StyleSheet.create({
   },
   sellerRatingText: {
     fontSize: 16,
-    color: palette.textMuted,
+    color: '#666666',
     marginRight: 4,
   },
   interestedSection: {
@@ -651,7 +619,7 @@ const styles = StyleSheet.create({
   },
   interestedTitle: {
     fontSize: 14,
-    color: palette.textMuted,
+    color: '#666666',
     marginBottom: 8,
   },
   interestTags: {
@@ -661,7 +629,7 @@ const styles = StyleSheet.create({
   interestTag: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: palette.surfaceSubtle,
+    backgroundColor: '#f8f8f8',
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -674,7 +642,7 @@ const styles = StyleSheet.create({
   },
   interestText: {
     fontSize: 12,
-    color: palette.textMuted,
+    color: '#666666',
   },
 
   bottomActions: {
@@ -685,13 +653,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: 20,
     paddingVertical: 16,
-    backgroundColor: palette.surface,
+    backgroundColor: '#ffffff',
     borderTopWidth: 1,
-    borderTopColor: palette.neutralLight,
+    borderTopColor: '#e5e5e5',
   },
   contactButton: {
     flex: 1,
-    backgroundColor: palette.surfaceSubtle,
+    backgroundColor: '#f0f0f0',
     borderRadius: 24,
     paddingVertical: 16,
     alignItems: 'center',
@@ -700,7 +668,7 @@ const styles = StyleSheet.create({
   contactButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: palette.navy,
+    color: '#000000',
   },
   offerButton: {
     flex: 1,
@@ -724,7 +692,7 @@ const styles = StyleSheet.create({
   },
   reviewModal: {
     flex: 1,
-    backgroundColor: palette.surface,
+    backgroundColor: '#ffffff',
   },
 
   submitText: {
@@ -738,7 +706,7 @@ const styles = StyleSheet.create({
   rateLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: palette.navy,
+    color: '#000000',
     marginBottom: 12,
   },
   starRating: {
@@ -751,7 +719,7 @@ const styles = StyleSheet.create({
   reviewLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: palette.navy,
+    color: '#000000',
     marginBottom: 12,
   },
   reviewInput: {
@@ -761,13 +729,13 @@ const styles = StyleSheet.create({
     padding: 16,
     fontSize: 16,
     minHeight: 120,
-    backgroundColor: palette.surfaceSubtle,
+    backgroundColor: '#f8f8f8',
   },
   reviewsSection: {
     marginBottom: 32,
   },
   reviewItem: {
-    backgroundColor: palette.surfaceSubtle,
+    backgroundColor: '#f8f8f8',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -780,7 +748,7 @@ const styles = StyleSheet.create({
   reviewUserName: {
     fontSize: 14,
     fontWeight: '600',
-    color: palette.navy,
+    color: '#000000',
     marginRight: 12,
   },
   reviewStars: {
@@ -789,7 +757,7 @@ const styles = StyleSheet.create({
   },
   reviewDate: {
     fontSize: 12,
-    color: palette.textMuted,
+    color: '#666666',
   },
   reviewText: {
     fontSize: 14,
@@ -798,24 +766,8 @@ const styles = StyleSheet.create({
   },
   noInterestsText: {
     fontSize: 12,
-    color: palette.textSecondary,
+    color: '#999999',
     fontStyle: 'italic',
-  },
-  rateButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fef3c7',
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 16,
-  },
-  rateButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#92400e',
   },
 });
 

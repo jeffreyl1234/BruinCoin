@@ -19,11 +19,6 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { CATEGORIES } from '../constants/data';
 import PreviewListingScreen, { ListingData } from './PreviewListingScreen';
-
-// Match the ImageItem type from PreviewListingScreen
-type ImageItem = 
-  | { type: 'image'; uri: string }
-  | { type: 'icon'; emoji: string; backgroundColor: string };
 import { supabase } from '../lib/supabaseClient';
 import Constants from 'expo-constants';
 import IconPickerModal from './IconPickerModal';
@@ -31,6 +26,10 @@ import IconPickerModal from './IconPickerModal';
 interface CreateListingScreenProps {
   onClose: () => void;
 }
+
+type ImageItem = 
+  | { type: 'image'; uri: string }
+  | { type: 'icon'; emoji: string; backgroundColor: string };
 
 export default function CreateListingScreen({ onClose }: CreateListingScreenProps) {
   const [selectedCategory, setSelectedCategory] = useState('Events');
@@ -200,7 +199,7 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
           // Format as data URL for API
           base64Images.push(`data:${mimeType};base64,${base64String}`);
         } catch (error: any) {
-          console.error('Error processing image:', error);
+          console.error('Error reading image:', error);
         }
       }
 
@@ -414,18 +413,28 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
     }
   };
 
+  // Convert ImageItems to string URIs for preview
+  const imageUrisForPreview = selectedImages.map(item => {
+    if (item.type === 'icon') {
+      // Create SVG data URI for preview
+      const svgString = `<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg"><rect width="200" height="200" fill="${item.backgroundColor}" rx="12"/><text x="100" y="120" font-size="80" text-anchor="middle" dominant-baseline="central">${item.emoji}</text></svg>`;
+      return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgString)}`;
+    }
+    return item.uri;
+  });
+
   const listingData: ListingData = {
     title: title || 'Title',
     description,
     price,
     category: selectedCategory,
     selectedOption,
-    images: selectedImages,
+    images: imageUrisForPreview,
     tags: selectedTags,
   };
 
   return (
-    <Modal visible={true} animationType="slide" presentationStyle="pageSheet">
+    <Modal visible={true} animationType="none" presentationStyle="overFullScreen">
       <SafeAreaView style={styles.modalContainer} edges={['top', 'bottom']}>
         <KeyboardAvoidingView 
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -778,6 +787,8 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 12,
     backgroundColor: '#f3f4f6',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   iconEmoji: {
     fontSize: 50,
