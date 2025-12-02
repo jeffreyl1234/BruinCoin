@@ -103,6 +103,8 @@ export default function HomeScreen({ onSeeAllNew, onSeeAllRecommended, onSeeAllA
           source={require('../assets/logo.png')} 
           style={styles.logo}
           resizeMode="contain"
+          onError={(error) => console.error('Logo image error:', error)}
+          onLoad={() => console.log('Logo image loaded successfully')}
         />
       </View>
 
