@@ -12,6 +12,9 @@ import ChatScreen from './screens/ChatScreen';
 import CreateListingScreen from './screens/CreateListingScreen';
 import SeeAllScreen from './screens/SeeAllScreen';
 import ListingDetailScreen from './screens/ListingDetailScreen';
+import EditListingsScreen from './screens/EditListingsScreen';
+import SettingsScreen from './screens/SettingsScreen';
+import ProfileEditScreen from './screens/ProfileEditScreen';
 import BottomNavigation from './components/BottomNavigation';
 import { supabase } from './lib/supabaseClient';
 import { NavigationContainer } from '@react-navigation/native';
@@ -34,6 +37,9 @@ export default function App() {
   const [showListingDetail, setShowListingDetail] = useState(false);
   const [selectedTradeId, setSelectedTradeId] = useState<string | null>(null);
   const [previousScreen, setPreviousScreen] = useState<{ screen: Screen; showSeeAll?: boolean; seeAllType?: 'new' | 'recommended' | 'all' } | null>(null);
+  const [showEditListings, setShowEditListings] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showProfileEdit, setShowProfileEdit] = useState(false);
 
   const handleSeeAll = (type: 'new' | 'recommended' | 'all') => {
     setSeeAllType(type);
@@ -180,10 +186,39 @@ export default function App() {
           <SearchScreen onTradePress={handleTradePress} />
         )}
         
-        {currentScreen === 'profile' && (
+        {currentScreen === 'profile' && !showEditListings && !showSettings && (
           <ProfileScreen
             onBack={() => setCurrentScreen('home')}
             onLogout={() => setIsLoggedIn(false)}
+            onTradePress={handleTradePress}
+            onEditListings={() => setShowEditListings(true)}
+            onSettings={() => setShowSettings(true)}
+          />
+        )}
+        
+        {showEditListings && (
+          <EditListingsScreen
+            onBack={() => setShowEditListings(false)}
+          />
+        )}
+        
+        {showSettings && (
+          <SettingsScreen
+            onBack={() => setShowSettings(false)}
+            onEditProfile={() => {
+              setShowSettings(false);
+              setShowProfileEdit(true);
+            }}
+            onLogout={() => setIsLoggedIn(false)}
+          />
+        )}
+        
+        {showProfileEdit && (
+          <ProfileEditScreen
+            onBack={() => {
+              setShowProfileEdit(false);
+              setCurrentScreen('profile');
+            }}
           />
         )}
         
