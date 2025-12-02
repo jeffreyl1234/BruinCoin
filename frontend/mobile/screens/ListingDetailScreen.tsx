@@ -225,7 +225,11 @@ export default function ListingDetailScreen({
       <SafeAreaView style={styles.container} edges={['top']}>
         {/* Header with back button */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={onClose} style={styles.backButton}>
+          <TouchableOpacity
+            onPress={onClose}
+            style={styles.backButton}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
             <Ionicons name="chevron-back" size={28} color="#666" />
           </TouchableOpacity>
         </View>
@@ -457,7 +461,8 @@ const styles = StyleSheet.create({
 
   header: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 14,
+    paddingBottom: 10,
     backgroundColor: '#f0f0f0',
   },
   backButton: {
