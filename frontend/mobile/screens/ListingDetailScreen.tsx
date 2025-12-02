@@ -15,7 +15,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { supabase } from '../lib/supabaseClient';
-import ScreenHeader from '../components/ScreenHeader';
+import Constants from 'expo-constants';
+import RateUserScreen from './RateUserScreen';
+import MakeAnOfferModal from './MakeAnOfferModal';
 
 interface Trade {
   id: string;
@@ -63,6 +65,8 @@ export default function ListingDetailScreen({
   const [userRating, setUserRating] = useState(0);
   const [reviews, setReviews] = useState<Array<{id: string, rating: number, text: string, userName: string, date: string}>>([]);
   const [sellerProfile, setSellerProfile] = useState<SellerProfile | null>(null);
+  const [showOfferModal, setShowOfferModal] = useState(false);
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
 
   const apiUrl = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:3001';
 
@@ -139,6 +143,42 @@ export default function ListingDetailScreen({
     }
     return '';
   };
+
+  const handleMakeOffer = async () => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const sellerId = trade?.offerer_user_id;
+    if (!sellerId || sellerId === user.id) return;
+
+    // Check if conversation exists
+    const { data: existingConversation } = await supabase
+      .from('conversations')
+      .select('id')
+      .or(`and(user1_id.eq.${user.id},user2_id.eq.${sellerId}),and(user1_id.eq.${sellerId},user2_id.eq.${user.id})`)
+      .limit(1)
+      .maybeSingle();
+
+    let conversationId = existingConversation?.id;
+
+    // If no conversation exists, create one
+    if (!conversationId) {
+      const { data: newConvo } = await supabase
+        .from('conversations')
+        .insert([{ user1_id: user.id, user2_id: sellerId }])
+        .select()
+        .single();
+
+      conversationId = newConvo?.id;
+    }
+
+    setCurrentConversationId(conversationId);
+    setShowOfferModal(true);
+  } catch (error) {
+    console.error('Error:', error);
+  }
+};
 
     const handleContactSeller = async () => {
     try {
@@ -358,35 +398,29 @@ export default function ListingDetailScreen({
                   </TouchableOpacity>
                 </View>
 
-                {/* Reviews Section */}
-                {reviews.length > 0 && (
-                  <View style={styles.reviewsSection}>
-                    <Text style={styles.sectionTitle}>Reviews</Text>
-                    {reviews.map((review) => (
-                      <View key={review.id} style={styles.reviewItem}>
-                        <View style={styles.reviewHeader}>
-                          <Text style={styles.reviewUserName}>{review.userName}</Text>
-                          <View style={styles.reviewStars}>
-                            {[1, 2, 3, 4, 5].map((star) => (
-                              <Ionicons 
-                                key={star} 
-                                name="star" 
-                                size={12} 
-                                color={star <= review.rating ? "#FFD700" : "#e5e5e5"} 
-                              />
-                            ))}
-                          </View>
-                          <Text style={styles.reviewDate}>{review.date}</Text>
-                        </View>
-                        {review.text ? (
-                          <Text style={styles.reviewText}>{review.text}</Text>
-                        ) : null}
-                      </View>
-                    ))}
-                  </View>
+                {/* Rate Seller Button - Only show if viewing someone else's listing */}
+                {sellerInfo && currentUserId && sellerInfo.id !== currentUserId && (
+                  <TouchableOpacity
+                    style={styles.rateButton}
+                    onPress={() => setShowRatingModal(true)}
+                  >
+                    <Ionicons name="star-outline" size={20} color="#fbbf24" />
+                    <Text style={[styles.rateButtonText, { marginLeft: 8 }]}>Rate Seller</Text>
+                  </TouchableOpacity>
                 )}
 
-
+                {/* Action Buttons */}
+                <View style={styles.bottomActions}>
+                  <TouchableOpacity style={styles.contactButton} onPress={handleContactSeller}>
+                    <Text style={styles.contactButtonText}>Contact Seller</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.offerButton}
+                    onPress={handleMakeOffer}
+                  >
+                    <Text style={styles.offerButtonText}>Make an Offer</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </>
           ) : (
@@ -396,57 +430,34 @@ export default function ListingDetailScreen({
           )}
         </ScrollView>
 
-        {/* Bottom Action Buttons */}
-        {trade && (
-          <View style={styles.bottomActions}>
-            <TouchableOpacity style={styles.contactButton}>
-              <Text style={styles.contactButtonText}>Contact Seller</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.offerButton} onPress={handleContactSeller}>
-              <Text style={styles.offerButtonText}>Make an offer</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </SafeAreaView>
-
-      <Modal visible={showReviewModal} animationType="slide" presentationStyle="pageSheet">
-        <SafeAreaView style={styles.reviewModal}>
-          <ScreenHeader 
-            title="Write a Review" 
-            onBack={() => setShowReviewModal(false)}
-            rightElement={
-              <TouchableOpacity onPress={handleSubmitReview}>
-                <Text style={styles.submitText} numberOfLines={1}>Submit</Text>
-              </TouchableOpacity>
-            }
-          />
-          
-          <View style={styles.reviewContent}>
-            <Text style={styles.rateLabel}>Rate this listing:</Text>
-            <View style={styles.starRating}>
-              {[1, 2, 3, 4, 5].map((star) => (
-                <TouchableOpacity key={star} onPress={() => setUserRating(star)}>
-                  <Ionicons 
-                    name="star" 
-                    size={32} 
-                    color={star <= userRating ? "#FFD700" : "#e5e5e5"} 
-                    style={styles.ratingStar}
-                  />
-                </TouchableOpacity>
-              ))}
-            </View>
-            
-            <Text style={styles.reviewLabel}>Your review:</Text>
-            <TextInput
-              style={styles.reviewInput}
-              placeholder="Share your experience with this listing..."
-              multiline
-              numberOfLines={4}
-              value={reviewText}
-              onChangeText={setReviewText}
-              textAlignVertical="top"
+          {/* Rating Modal */}
+          {sellerInfo && (
+            <RateUserScreen
+              visible={showRatingModal}
+              ratedUserId={sellerInfo.id}
+              ratedUserName={sellerInfo.name}
+              onClose={() => setShowRatingModal(false)}
+              onRated={() => {
+                // Refresh seller profile to show updated rating
+                if (trade?.offerer_user_id) {
+                  fetchSellerProfile(trade.offerer_user_id);
+                }
+              }}
             />
-          </View>
+          )}
+          {trade && sellerProfile && currentConversationId && (
+            <MakeAnOfferModal
+              visible={showOfferModal}
+              onClose={() => {
+                setShowOfferModal(false);
+                setCurrentConversationId(null);
+              }}
+              trade={trade}
+              sellerProfile={sellerProfile}
+              currentConversationId={currentConversationId}
+              navigation={navigation}
+            />
+          )}
         </SafeAreaView>
       </Modal>
     </Modal>
