@@ -1,11 +1,10 @@
 import { StyleSheet, Text, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, View } from 'react-native';
 import { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import Constants from 'expo-constants';
 import { palette, buttons } from '../constants/theme';
 
 interface LoginScreenProps {
-  onLogin: (result: { username?: string }) => void;
+  onLogin: (result: { requiresOnboarding: boolean }) => void;
   onBack?: () => void;
   onSwitchToRegister?: () => void;
 }
@@ -51,45 +50,11 @@ export default function LoginScreen({ onLogin, onBack, onSwitchToRegister }: Log
       }
 
       if (data.user) {
-        // Verify user exists in public.users table
-        const apiUrl = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:3001';
-        const userCheckResponse = await fetch(`${apiUrl}/api/users/${data.user.id}`);
-        
-        if (userCheckResponse.status === 404) {
-          // User doesn't exist in public.users - sign them out and prevent login
-          await supabase.auth.signOut();
-          Alert.alert(
-            'Account Not Found',
-            'Your account was not found in our system. Please register to create an account.',
-            [{ text: 'OK' }]
-          );
-          setLoading(false);
-          return;
-        }
-        
-        if (!userCheckResponse.ok) {
-          // Error checking user - sign them out for safety
-          await supabase.auth.signOut();
-          Alert.alert(
-            'Error',
-            'Unable to verify your account. Please try again or contact support.',
-            [{ text: 'OK' }]
-          );
-          setLoading(false);
-          return;
-        }
+        const onboardingComplete =
+          data.user.user_metadata?.onboarding_complete === true ||
+          data.user.user_metadata?.onboarding_complete === 'true';
 
-        // User exists in public.users - get username for welcome back screen
-        const userDataResponse = await fetch(`${apiUrl}/api/users/${data.user.id}`);
-        let username = '';
-        if (userDataResponse.ok) {
-          const userData = await userDataResponse.json();
-          if (userData.user?.user_name) {
-            username = userData.user.user_name;
-          }
-        }
-
-        onLogin({ username });
+        onLogin({ requiresOnboarding: !onboardingComplete });
       }
     } catch (error: any) {
       Alert.alert('Error', error.message || 'An unexpected error occurred');
