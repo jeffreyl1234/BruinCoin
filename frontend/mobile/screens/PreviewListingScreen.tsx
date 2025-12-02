@@ -14,13 +14,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabaseClient';
 import Constants from 'expo-constants';
 
+type ImageItem = 
+  | { type: 'image'; uri: string }
+  | { type: 'icon'; emoji: string; backgroundColor: string };
+
 export interface ListingData {
   title: string;
   description: string;
   price: string;
   category: string;
   selectedOption: string | null;
-  images?: string[];
+  images?: ImageItem[];
   tags?: string[];
 }
 
@@ -155,13 +159,19 @@ export default function PreviewListingScreen({
               contentContainerStyle={styles.imagesContent}
             >
               {listingData.images && listingData.images.length > 0 ? (
-                listingData.images.map((uri, index) => (
-                  <Image
-                    key={index}
-                    source={{ uri }}
-                    style={styles.image}
-                    resizeMode="cover"
-                  />
+                listingData.images.map((item, index) => (
+                  item.type === 'icon' ? (
+                    <View key={index} style={[styles.image, { backgroundColor: item.backgroundColor, alignItems: 'center', justifyContent: 'center' }]}>
+                      <Text style={styles.previewIconEmoji}>{item.emoji}</Text>
+                    </View>
+                  ) : (
+                    <Image
+                      key={index}
+                      source={{ uri: item.uri }}
+                      style={styles.image}
+                      resizeMode="cover"
+                    />
+                  )
                 ))
               ) : (
                 <>
@@ -366,6 +376,9 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 12,
     marginRight: 12,
+  },
+  previewIconEmoji: {
+    fontSize: 80,
   },
   imagePlaceholder: {
     width: 300,

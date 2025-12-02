@@ -19,8 +19,14 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { CATEGORIES } from '../constants/data';
 import PreviewListingScreen, { ListingData } from './PreviewListingScreen';
+
+// Match the ImageItem type from PreviewListingScreen
+type ImageItem = 
+  | { type: 'image'; uri: string }
+  | { type: 'icon'; emoji: string; backgroundColor: string };
 import { supabase } from '../lib/supabaseClient';
 import Constants from 'expo-constants';
+import IconPickerModal from './IconPickerModal';
 
 interface CreateListingScreenProps {
   onClose: () => void;
@@ -34,10 +40,12 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
   const [price, setPrice] = useState('');
   const [showPreview, setShowPreview] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
-  const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [selectedImages, setSelectedImages] = useState<ImageItem[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [customTagInput, setCustomTagInput] = useState('');
+  const [showImageOptions, setShowImageOptions] = useState(false);
+  const [showIconPicker, setShowIconPicker] = useState(false);
 
   const apiUrl = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:3001';
 
@@ -45,25 +53,69 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
     setShowPreview(true);
   };
 
-  const pickImage = async () => {
-    // Request permissions
+  const showImageOptionsModal = () => {
+    setShowImageOptions(true);
+  };
+
+  const pickImageFromAlbum = async () => {
+    // Request permissions first
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permission needed', 'Sorry, we need camera roll permissions to upload photos!');
+      setShowImageOptions(false);
       return;
     }
 
-    // Launch image picker with compression to reduce payload size
+    // Launch image picker (it will overlay on top of modal)
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsMultipleSelection: true,
       quality: 0.6, // Reduced quality to decrease file size
       allowsEditing: false,
     });
 
-    if (!result.canceled && result.assets) {
-      const newImages = result.assets.map(asset => asset.uri);
+    // Close modal after image picker closes
+    setShowImageOptions(false);
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      const newImages: ImageItem[] = result.assets.map(asset => ({ type: 'image' as const, uri: asset.uri }));
       setSelectedImages([...selectedImages, ...newImages].slice(0, 10)); // Limit to 10 images
+    }
+  };
+
+  const takePhoto = async () => {
+    // Request camera permissions first
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Sorry, we need camera permissions to take photos!');
+      setShowImageOptions(false);
+      return;
+    }
+
+    // Launch camera (it will overlay on top of modal)
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.6,
+      allowsEditing: false,
+    });
+
+    // Close modal after camera closes
+    setShowImageOptions(false);
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      const newImages: ImageItem[] = result.assets.map(asset => ({ type: 'image' as const, uri: asset.uri }));
+      setSelectedImages([...selectedImages, ...newImages].slice(0, 10)); // Limit to 10 images
+    }
+  };
+
+  const handleIconSelect = async (emoji: string, backgroundColor: string) => {
+    try {
+      // Store icon as an object with emoji and background color
+      const iconItem: ImageItem = { type: 'icon', emoji, backgroundColor };
+      setSelectedImages([...selectedImages, iconItem].slice(0, 10));
+    } catch (error) {
+      console.error('Error creating icon:', error);
+      Alert.alert('Error', 'Failed to create icon');
     }
   };
 
@@ -71,14 +123,55 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
     setSelectedImages(selectedImages.filter((_, i) => i !== index));
   };
 
-  const uploadImagesToSupabase = async (imageUris: string[], userId: string): Promise<string[]> => {
+  const uploadImagesToSupabase = async (imageItems: ImageItem[], userId: string): Promise<string[]> => {
     try {
       // Read all images as base64
       const base64Images: string[] = [];
       
-      for (const uri of imageUris) {
+      for (const item of imageItems) {
         try {
-          // Read file as base64 (will throw error if file doesn't exist)
+          if (item.type === 'icon') {
+            // Create SVG from icon data
+            const svgString = `<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg"><rect width="200" height="200" fill="${item.backgroundColor}" rx="12"/><text x="100" y="120" font-size="80" text-anchor="middle" dominant-baseline="central">${item.emoji}</text></svg>`;
+            
+            // Convert SVG to base64 using FileSystem
+            try {
+              const tempUri = `${FileSystem.cacheDirectory}icon_${Date.now()}.svg`;
+              await FileSystem.writeAsStringAsync(tempUri, svgString, {
+                encoding: FileSystem.EncodingType.UTF8,
+              });
+              
+              const base64Svg = await FileSystem.readAsStringAsync(tempUri, {
+                encoding: FileSystem.EncodingType.Base64,
+              });
+              
+              // Clean up temp file
+              await FileSystem.deleteAsync(tempUri, { idempotent: true });
+              
+              const base64DataUri = `data:image/svg+xml;base64,${base64Svg}`;
+              base64Images.push(base64DataUri);
+              continue;
+            } catch (svgError) {
+              console.error('Error encoding SVG:', svgError);
+              continue;
+            }
+          }
+
+          // Handle regular image URIs
+          const uri = item.uri;
+          
+          // Check if it's already a data URI
+          if (uri.startsWith('data:image/')) {
+            const base64Match = uri.match(/data:image\/[^;]+;base64,(.+)/);
+            if (base64Match) {
+              base64Images.push(uri);
+              continue;
+            }
+            console.warn('Unsupported data URI format, skipping:', uri.substring(0, 50));
+            continue;
+          }
+
+          // Read file as base64
           let base64String: string;
           try {
             base64String = await FileSystem.readAsStringAsync(uri, {
@@ -107,7 +200,7 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
           // Format as data URL for API
           base64Images.push(`data:${mimeType};base64,${base64String}`);
         } catch (error: any) {
-          console.error('Error reading image:', error);
+          console.error('Error processing image:', error);
         }
       }
 
@@ -356,9 +449,15 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
             <View style={styles.modalSection}>
               <Text style={styles.sectionLabel}>Add Photos</Text>
               <View style={styles.photosContainer}>
-                {selectedImages.map((uri, index) => (
+                {selectedImages.map((item, index) => (
                   <View key={index} style={[styles.photoContainer, index < selectedImages.length - 1 && { marginRight: 12 }]}>
-                    <Image source={{ uri }} style={styles.photoImage} />
+                    {item.type === 'icon' ? (
+                      <View style={[styles.photoImage, { backgroundColor: item.backgroundColor }]}>
+                        <Text style={styles.iconEmoji}>{item.emoji}</Text>
+                      </View>
+                    ) : (
+                      <Image source={{ uri: item.uri }} style={styles.photoImage} />
+                    )}
                     <TouchableOpacity 
                       style={styles.removePhotoButton}
                       onPress={() => removeImage(index)}
@@ -370,7 +469,7 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
                 {selectedImages.length < 10 && (
                   <TouchableOpacity 
                     style={[styles.photoPlaceholder, selectedImages.length > 0 && { marginLeft: 12 }]}
-                    onPress={pickImage}
+                    onPress={showImageOptionsModal}
                   >
                     <Ionicons name="add" size={32} color="#9ca3af" />
                     <Text style={styles.addPhotoText}>Add Photo</Text>
@@ -562,6 +661,54 @@ export default function CreateListingScreen({ onClose }: CreateListingScreenProp
         onPublish={handlePublish}
         isPublishing={isPublishing}
       />
+
+      {/* Image Options Modal */}
+      <Modal
+        visible={showImageOptions}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowImageOptions(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowImageOptions(false)}
+        >
+          <View style={styles.imageOptionsModal}>
+            <TouchableOpacity
+              style={styles.imageOption}
+              onPress={takePhoto}
+            >
+              <Ionicons name="camera" size={24} color="#1f2937" />
+              <Text style={styles.imageOptionText}>Take a photo</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.imageOption}
+              onPress={pickImageFromAlbum}
+            >
+              <Ionicons name="images" size={24} color="#1f2937" />
+              <Text style={styles.imageOptionText}>Use a photo from album</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.imageOption, styles.imageOptionLast]}
+              onPress={() => {
+                setShowImageOptions(false);
+                setShowIconPicker(true);
+              }}
+            >
+              <Ionicons name="happy" size={24} color="#1f2937" />
+              <Text style={styles.imageOptionText}>Add an icon</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Icon Picker Modal */}
+      <IconPickerModal
+        visible={showIconPicker}
+        onClose={() => setShowIconPicker(false)}
+        onSelect={handleIconSelect}
+      />
     </Modal>
   );
 }
@@ -631,6 +778,9 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 12,
     backgroundColor: '#f3f4f6',
+  },
+  iconEmoji: {
+    fontSize: 50,
   },
   removePhotoButton: {
     position: 'absolute',
@@ -763,6 +913,34 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#1f2937',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageOptionsModal: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 20,
+    width: '80%',
+    maxWidth: 300,
+  },
+  imageOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  imageOptionLast: {
+    borderBottomWidth: 0,
+  },
+  imageOptionText: {
+    fontSize: 16,
+    color: '#1f2937',
+    marginLeft: 12,
   },
   removeTagButton: {
     padding: 2,
