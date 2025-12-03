@@ -115,16 +115,10 @@ export default function MessagesLandingScreen({ onChatPress }: MessagesLandingSc
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity>
-            <Text style={styles.editText}>Edit</Text>
-          </TouchableOpacity>
           <Text style={styles.headerTitle}>Chats</Text>
-          <TouchableOpacity>
-            <Ionicons name="create-outline" size={22} color="#007AFF" />
-          </TouchableOpacity>
         </View>
 
-        {/* Search + Filter */}
+        {/* Search */}
         <View style={styles.searchSection}>
           <View style={styles.searchBar}>
             <Ionicons name="search-outline" size={18} color="#9ca3af" />
@@ -136,13 +130,6 @@ export default function MessagesLandingScreen({ onChatPress }: MessagesLandingSc
               onChangeText={setSearchText}
             />
           </View>
-          <TouchableOpacity style={styles.filterButton}>
-            <Ionicons name="filter-outline" size={18} color="#1f2937" />
-            <Text style={styles.filterText}>Filter</Text>
-            <View style={styles.filterBadge}>
-              <Text style={styles.filterBadgeText}>2</Text>
-            </View>
-          </TouchableOpacity>
         </View>
 
         {/* Chat List */}
@@ -195,54 +182,27 @@ const styles = StyleSheet.create({
   scrollView: { flex: 1 },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingBottom: 16,
     backgroundColor: '#fff',
   },
-  editText: { color: '#007AFF', fontWeight: '600', fontSize: 16 },
   headerTitle: { fontSize: 20, fontWeight: '700', color: '#111827' },
   searchSection: {
-    flexDirection: 'row',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    alignItems: 'center',
     backgroundColor: '#fff',
   },
   searchBar: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F2F4F7',
     borderRadius: 12,
     paddingHorizontal: 12,
     height: 40,
-    marginRight: 10,
   },
   searchInput: { flex: 1, fontSize: 14, color: '#111827', marginLeft: 6 },
-  filterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F2F4F7',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 40,
-    position: 'relative',
-  },
-  filterText: { fontSize: 14, fontWeight: '500', color: '#1f2937', marginLeft: 4 },
-  filterBadge: {
-    position: 'absolute',
-    top: -5,
-    right: -5,
-    backgroundColor: '#2563eb',
-    borderRadius: 10,
-    width: 18,
-    height: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  filterBadgeText: { fontSize: 10, color: '#fff', fontWeight: '600' },
   chatList: { paddingVertical: 8 },
   chatCard: {
     flexDirection: 'row',

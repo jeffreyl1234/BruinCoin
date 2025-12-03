@@ -53,6 +53,10 @@ export default function TradeCard({ trade, onPress, width = defaultCardWidth, sh
           source={{ uri: trade.image_urls[0] }} 
           style={[styles.image, { height: width }]}
           resizeMode="cover"
+          onError={(error) => {
+            console.error('Error loading image:', error.nativeEvent.error);
+            console.error('Image URL:', trade.image_urls[0]);
+          }}
         />
       ) : (
         <View style={[styles.image, { height: width }]}>

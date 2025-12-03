@@ -142,19 +142,14 @@ export default function CreateAccountScreen({ onBack, onNext }: CreateAccountScr
             autoCorrect={false}
           />
           
-          <View style={styles.passwordContainer}>
-            <TextInput
-              style={styles.input}
-              placeholder="Password"
-              placeholderTextColor="#9ca3af"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-            <TouchableOpacity style={styles.forgotPasswordButton}>
-              <Text style={styles.forgotPasswordText}>Forgot your password?</Text>
-            </TouchableOpacity>
-          </View>
+          <TextInput
+            style={styles.input}
+            placeholder="Password"
+            placeholderTextColor="#9ca3af"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+          />
           
           <TouchableOpacity 
             style={[styles.button, (!isFormValid || loading) && styles.buttonDisabled]} 
@@ -216,18 +211,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#f9fafb',
     color: '#111827',
-  },
-  passwordContainer: {
-    marginBottom: 8,
-  },
-  forgotPasswordButton: {
-    alignSelf: 'flex-end',
-    marginTop: 8,
-    marginBottom: 16,
-  },
-  forgotPasswordText: {
-    fontSize: 14,
-    color: '#6b7280',
   },
   button: {
     backgroundColor: '#1e40af',

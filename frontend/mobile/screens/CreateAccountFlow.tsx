@@ -166,6 +166,7 @@ export default function CreateAccountFlow({ onBack, onComplete }: CreateAccountF
         const updateData: any = {
           trade_preferences: tradePreferences,
           category_preferences: selectedCategories,
+          interests: selectedCategories, // Also save as interests for display
         };
 
         await fetch(`${apiUrl}/api/users/${user.id}`, {

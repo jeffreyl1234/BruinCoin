@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { supabase } from '../lib/supabase';
+import sharp from 'sharp';
 
 const router = Router();
 
@@ -62,25 +63,56 @@ router.post('/images', async (req, res) => {
         continue;
       }
 
-      // Determine file extension (default to jpg)
+      // Determine file extension and handle SVG conversion
       let fileExt = 'jpg';
+      let isSvg = false;
       if (base64String.startsWith('data:image/')) {
         const mimeMatch = base64String.match(/data:image\/([^;]+)/);
         if (mimeMatch) {
           const mimeType = mimeMatch[1];
-          if (mimeType === 'jpeg') fileExt = 'jpg';
-          else if (['png', 'gif', 'webp'].includes(mimeType)) fileExt = mimeType;
-          else fileExt = 'jpg';
+          if (mimeType === 'svg+xml') {
+            isSvg = true;
+            fileExt = 'png'; // Convert SVG to PNG
+          } else if (mimeType === 'jpeg') {
+            fileExt = 'jpg';
+          } else if (['png', 'gif', 'webp'].includes(mimeType)) {
+            fileExt = mimeType;
+          } else {
+            fileExt = 'jpg';
+          }
         }
       }
 
       // Convert base64 to buffer
       let buffer: Buffer;
       try {
-        buffer = Buffer.from(base64Data, 'base64');
-        if (buffer.length === 0) {
-          console.error(`Empty buffer created at index ${i}`);
-          continue;
+        // If SVG, decode base64 to get SVG string, then convert to PNG
+        if (isSvg) {
+          try {
+            // Decode base64 to get SVG string
+            const svgString = Buffer.from(base64Data, 'base64').toString('utf-8');
+            
+            // Convert SVG to PNG using sharp
+            // Sharp can accept SVG as a Buffer or string
+            buffer = await sharp(svgString, { density: 300 })
+              .resize(400, 400, {
+                fit: 'contain',
+                background: { r: 255, g: 255, b: 255, alpha: 1 }
+              })
+              .png()
+              .toBuffer();
+          } catch (svgError: any) {
+            console.error(`Error converting SVG to PNG at index ${i}:`, svgError);
+            console.error(`SVG conversion error details:`, svgError?.message);
+            continue;
+          }
+        } else {
+          // For regular images, just decode base64
+          buffer = Buffer.from(base64Data, 'base64');
+          if (buffer.length === 0) {
+            console.error(`Empty buffer created at index ${i}`);
+            continue;
+          }
         }
       } catch (bufferError: any) {
         console.error(`Error creating buffer at index ${i}:`, bufferError);
@@ -92,10 +124,11 @@ router.post('/images', async (req, res) => {
       const filePath = fileName;
 
       // Upload to Supabase storage
+      const contentType = fileExt === 'jpg' ? 'image/jpeg' : `image/${fileExt}`;
       const { data, error } = await supabase.storage
         .from('trade-images')
         .upload(filePath, buffer, {
-          contentType: `image/${fileExt}`,
+          contentType: contentType,
           upsert: false,
         });
 
